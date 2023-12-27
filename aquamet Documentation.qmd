@@ -1,0 +1,11 @@
+---
+title: "aquamet Documentation"
+---
+
+## Purpose
+
+The purpose of this document is to provide guidance on using the *aquamet* R package. This package is used to calculate physical habitat metrics from raw field-collected data for the National Lakes Assessment (NLA) and the National Rivers and Streams Assessment (NRSA).
+
+```{r}
+1 + 1
+```
