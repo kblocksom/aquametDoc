@@ -1,11 +1,45 @@
 ---
 title: "aquamet Documentation"
+date: Sys.date()
+format: 
+  html: 
+    code-fold: true
+    embed-resources: true
+    toc: true
+author: 
+  name: Karen Blocksom
+  email: blocksom.karen@epa.gov
+  affiliation: 
+    name: U.S. EPA, Office of Research and Development
+    city: Corvallis
+    state: OR
 ---
 
-## Purpose
+## Introduction
 
-The purpose of this document is to provide guidance on using the *aquamet* R package. This package is used to calculate physical habitat metrics from raw field-collected data for the National Lakes Assessment (NLA) and the National Rivers and Streams Assessment (NRSA).
+The purpose of this document is to provide guidance on using the *aquamet* R package. This package is used to calculate physical habitat metrics from raw field-collected data for the National Lakes Assessment (NLA) and the National Rivers and Streams Assessment (NRSA). In each of these National Aquatic Resource Surveys (NARS), hundreds to thousands of individual measurements are made at varying scales, depending on the measurement. These measurements are then combined into hundreds of metrics, a relatively small number of which are eventually used in physical habitat indicators. There are at least 10 functions for NLA and 15 functions for NRSA to calculate physical habitat metrics, and some require previously calculated metrics. Because the process is so complex, this document has been created to walk the user through the use of the functions.
 
-```{r}
-1 + 1
+### Installing aquamet
+
+The *aquamet* package is available as a tarball (tar.gz extension), which is much like a zip file that combines all of the files needed to run the package. It can be installed as follows, but you will need to replace `path_to_file` with the actual path:
+
+```{r install-package, eval=FALSE}
+devtools::install_local("path_to_file", dependencies = 'Imports', type="source")
 ```
+
+### Installing other necessary packages
+
+Because this package is not located on CRAN, you may need to install the following packages if you do not already have them installed: plyr, dplyr, reshape2, Hmisc, gtools, stringr, foreach, RUnit, and tidyr. This can be done in one statement, using the following code:
+
+```{r install-oth-pkgs, eval=FALSE}
+install.packages(c('plyr', 'dplyr', 'reshape2', 'Hmisc', 'gtools', 'stringr', 
+                   'foreach', 'Runit', 'tidyr'))
+```
+
+## Getting started
+
+The functions in the *aquamet* package are designed to be flexible, but they do
+assume certain data characteristics. Importantly, they assume there is a 
+single variable that describes the site-visit, and that it is named `SITE`. Thus,
+if you have multiple visits to some sites in your data, you will need to create 
+a new variable that combines this information and is named `SITE`. 
