@@ -38,8 +38,35 @@ install.packages(c('plyr', 'dplyr', 'reshape2', 'Hmisc', 'gtools', 'stringr',
 
 ## Getting started
 
-The functions in the *aquamet* package are designed to be flexible, but they do
-assume certain data characteristics. Importantly, they assume there is a 
-single variable that describes the site-visit, and that it is named `SITE`. Thus,
-if you have multiple visits to some sites in your data, you will need to create 
-a new variable that combines this information and is named `SITE`. 
+First, we need to load the *aquamet* library.
+
+```{r load-library}
+library(aquamet)
+
+```
+
+The functions in the *aquamet* package are designed to be flexible, but they do assume certain data characteristics. Importantly, they assume there is a single variable that describes the site-visit, and that it is named `SITE`. Thus, if you have multiple visits to some sites in your data, you will need to create a new variable that combines this information and is named `SITE`.
+
+Included with the aquamet package are example datasets that we will use to walk through the steps of calculating metrics. We can take a peek at the NLA physical habitat example data using `head()`. The structure of this dataset already has the variable names of `SITE`, `STATION`, and `VALUE` that are expected and required by the NLA metrics functions. However, the inputs to each function are expected to be subsets of individual parameters in the dataset. Therefore, it is useful to see what the parameter names in the dataset are first.
+
+```{r data-look}
+
+head(nlaPhabEx)
+
+unique(nlaPhabEx$PARAMETER)
+```
+
+It is obvious that there are large numbers of measurements in this dataset, and to better understand where those parameters came from, we can look at the prefix for many of these parameters. The general association of prefix to data type is:
+
+1)  AM: littoral aquatic macrophytes
+2)  BS: littoral bottom substrate
+3)  C: riparian canopy
+4)  FC: littoral fish cover
+5)  GC: riparian ground cover
+6)  HI: human influence
+7)  SS: shoreline substrate
+8)  U: riparian understory
+
+Also note that parameters with the suffix of \_DD are measured in the drawdown zone when one is present, and those without the suffix are measured in the standard littoral or riparian zone, depending on the parameter. In practice, metrics based on only the standard littoral or riparian zones are calculated, with \_LIT and \_RIP added to the metric name after the fact. Metrics based only on drawdown parameters have \_DD added to the metric name.
+
+**EXPLAIN HOW \_SIM and \_SYN metric versions are calculated and why!!!!**
