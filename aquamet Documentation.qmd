@@ -38,14 +38,18 @@ install.packages(c('plyr', 'dplyr', 'reshape2', 'Hmisc', 'gtools', 'stringr',
 
 ## Getting started
 
-First, we need to load the *aquamet* library.
+First, we need to load the *aquamet* library. You will also want to ensure you have the `tidyr` package installed and loaded because we will use it to made data wider or longer, depending on our needs.
 
 ```{r load-library}
+library(tidyr)
+library(plyr)
+library(dplyr)
 library(aquamet)
-
 ```
 
 The functions in the *aquamet* package are designed to be flexible, but they do assume certain data characteristics. Importantly, they assume there is a single variable that describes the site-visit, and that it is named `SITE`. Thus, if you have multiple visits to some sites in your data, you will need to create a new variable that combines this information and is named `SITE`.
+
+### NLA Example
 
 Included with the aquamet package are example datasets that we will use to walk through the steps of calculating metrics. We can take a peek at the NLA physical habitat example data using `head()`. The structure of this dataset already has the variable names of `SITE`, `STATION`, and `VALUE` that are expected and required by the NLA metrics functions. However, the inputs to each function are expected to be subsets of individual parameters in the dataset. Therefore, it is useful to see what the parameter names in the dataset are first.
 
@@ -67,6 +71,132 @@ It is obvious that there are large numbers of measurements in this dataset, and 
 7)  SS: shoreline substrate
 8)  U: riparian understory
 
-Also note that parameters with the suffix of \_DD are measured in the drawdown zone when one is present, and those without the suffix are measured in the standard littoral or riparian zone, depending on the parameter. In practice, metrics based on only the standard littoral or riparian zones are calculated, with \_LIT and \_RIP added to the metric name after the fact. Metrics based only on drawdown parameters have \_DD added to the metric name.
+Also note that parameters with the suffix of \_DD are measured in the drawdown zone when one is present, and those without the suffix are measured in the standard littoral or riparian zone, depending on the parameter. Metrics based only on drawdown parameters have \_DD added to the metric name, whereas those based only on the riparian or littoral data standard plots have a suffix of \_RIP or \_LIT, respectively. There are also \_SYN metrics which are synthesized by combining the drawdown and riparian data together and \_SIM metrics which combine drawdown and littoral data. These versions of the metrics are meant to simulate the way data were collected in 2007, which did not include drawdown plots. However, it is not important to understand the details of how these data are combined, because if you include both drawdown and riparian/littoral parameter data when you call functions, the functions will automatically output all three types of metrics. Functions that can produce \_SYN metrics are nlaHumanImpact(), nlaRiparianVegetation(), and the function that can produce \_SIM metrics is nlaFishCover(). If drawdown data were not recorded, the resulting metrics would simply be the \_RIP or \_LIT metrics. For the purposes of calculating physical habitat indicators, the \_SYN and \_LIT versions of metrics are used for data from 2012 onward.
 
-**EXPLAIN HOW \_SIM and \_SYN metric versions are calculated and why!!!!**
+#### Calculating metrics
+
+Setting up the data for calculating metrics is much simpler and more straightforward for NLA data than for NRSA data. The NLA data are structured in a single format, with all data having the following main variables: SITE, STATION, PARAMETER, VALUE. Let's start by calculating aquatic macrophyte metrics using `nlaAquaticMacrophytes()`. There are several arguments to this function, with each representing the data for a particular parameter. The expected format of those input data are SITE, STATION, VALUE (the parameter value is assumed). We can use the names of the arguments as the guide to which parameter is expected.
+
+For this function, we need to create datasets for emergent vegetation cover (parameter AM_EMERGENT), floating vegetation cover (parameter AM_FLOATING), submergent vegetation cover (parameter AM_SUBMERGENT), and total vegetation cover (parameter AM_TOTALCOVER). Since the expected input datasets only have the variables SITE, STATION, and VALUE, we also need to drop the PARAMETER variable.
+
+```{r calc-aqmac-1}
+unique(nlaPhabEx$PARAMETER)
+
+emergent <- subset(nlaPhabEx, PARAMETER=='AM_EMERGENT', select = -PARAMETER)
+
+floating <- subset(nlaPhabEx, PARAMETER=='AM_FLOATING', select = -PARAMETER)
+
+submergent <- subset(nlaPhabEx, PARAMETER=='AM_SUBMERGENT', select = -PARAMETER)
+
+totcover <- subset(nlaPhabEx, PARAMETER=='AM_TOTALCOVER', select = -PARAMETER)
+```
+
+There are two other arguments in the `nlaAquaticMacrophytes()` function. The one named dataInformation simply defines the different values found in the data and the weights associated with them, as well as an indicator of presence of vegetation. If using standard NLA data, this argument can be left as the default, so it does not need to be specified. The second additional argument is only used when running tests and can be ignored because its default is FALSE. Now that we have the datasets needed to run the function, we can calculate metrics.
+
+```{r calc-aqmet-2}
+aqmacroMets <- nlaAquaticMacrophytes(emergent=emergent, 
+                                     floating=floating, 
+                                     submergent=submergent, 
+                                     totalCover=totcover)
+
+head(aqmacroMets)
+```
+
+To look at the full set of metrics calculated, we want to pivot the data into a wide format to see all metrics at once.
+
+```{r calc-aqmet-3}
+aqmacroMets.wide <- pivot_wider(aqmacroMets, id_cols = 'SITE',
+                                names_from='METRIC', 
+                                values_from='VALUE')
+
+names(aqmacroMets.wide)
+
+
+```
+
+The output is a pretty simple dataset because the drawdown zone is not included in the calculations and there is only one version of each metric. Now we can perform the same preparation for the other NLA functions to get the full set of metrics. 
+
+We will need to update values for the parameter ANGLE because NEAR_VERTICAL_UNDERCUT is not a valid value. It must be updated to NEAR_VERTICAL in order to use in the function. Thus, we can update the full dataset for this value first. For certain other inputs, the VALUE variable must be converted to numeric to avoid an error.
+
+```{r calc-bank-mets}
+
+angle <- subset(nlaPhabEx, PARAMETER=='ANGLE', select = -PARAMETER) %>%
+  plyr::mutate(VALUE = ifelse(VALUE=='NEAR_VERTICAL_UNDERCUT', 'NEAR_VERTICAL', VALUE))
+
+drawdown <- subset(nlaPhabEx, PARAMETER=='DRAWDOWN', select = -PARAMETER)
+
+horizontalDistance <- subset(nlaPhabEx, PARAMETER=='HORIZ_DIST', select=-PARAMETER) |>
+  plyr::mutate(VALUE = as.numeric(VALUE))
+
+horizontalDistanceDD <- subset(nlaPhabEx, PARAMETER=='HORIZ_DIST_DD', select=-PARAMETER) |>
+  plyr::mutate(VALUE = as.numeric(VALUE))
+
+verticalHeight = subset(nlaPhabEx, PARAMETER=='VERT_HEIGHT', select=-PARAMETER) |>
+  plyr::mutate(VALUE = as.numeric(VALUE))
+                            
+verticalHeightDD = subset(nlaPhabEx, PARAMETER=='VERT_HEIGHT_DD', select=-PARAMETER) |>
+  plyr::mutate(VALUE = as.numeric(VALUE))
+# nlaBankFeatures
+bankMets <- nlaBankFeatures(angle,
+                            drawdown,
+                            horizontalDistance,
+                            horizontalDistanceDD,
+                            verticalHeight,
+                            verticalHeightDD)
+
+unique(bankMets$METRIC)
+                            
+```
+
+Now that we can see the general format of inputting data to the function and the outputs, we will run the other metric functions, preparing the input data for each one first. 
+
+
+```{r calc-other_mets}
+# Bottom Substrate
+bedrock <- subset(nlaPhabEx,PARAMETER=='BS_BEDROCK',select=-PARAMETER)
+boulder <- subset(nlaPhabEx,PARAMETER=='BS_BOULDER',select=-PARAMETER)
+color <- subset(nlaPhabEx,PARAMETER=='BS_COLOR',select=-PARAMETER)
+cobble <- subset(nlaPhabEx,PARAMETER=='BS_COBBLE',select=-PARAMETER)
+gravel <- subset(nlaPhabEx,PARAMETER=='BS_GRAVEL',select=-PARAMETER)
+odor <- subset(nlaPhabEx,PARAMETER=='ODOR',select=-PARAMETER)
+organic <- subset(nlaPhabEx,PARAMETER=='BS_ORGANIC',select=-PARAMETER)
+sand <- subset(nlaPhabEx,PARAMETER=='BS_SAND',select=-PARAMETER)
+silt <- subset(nlaPhabEx,PARAMETER=='BS_SILT',select=-PARAMETER)
+wood <- subset(nlaPhabEx,PARAMETER=='BS_WOOD',select=-PARAMETER)
+  
+botSubMets <- nlaBottomSubstrate(bedrock,
+                                 boulder,
+                                 color,  
+                                 cobble,
+                                 gravel,
+                                 odor,
+                                 organic,
+                                 sand,
+                                 silt,
+                                 wood)
+
+head(botSubMets)
+
+# Shoreline Substrate
+bedrock <- subset(nlaPhabEx,PARAMETER=='SS_BEDROCK',select=-PARAMETER)
+boulder <- subset(nlaPhabEx,PARAMETER=='SS_BOULDERS',select=-PARAMETER)
+color <- subset(nlaPhabEx,PARAMETER=='SS_COLOR',select=-PARAMETER)
+cobble <- subset(nlaPhabEx,PARAMETER=='SS_COBBLE',select=-PARAMETER)
+gravel <- subset(nlaPhabEx,PARAMETER=='SS_GRAVEL',select=-PARAMETER)
+organic <- subset(nlaPhabEx,PARAMETER=='SS_ORGANIC',select=-PARAMETER)
+other <- subset(nlaPhabEx,PARAMETER=='SS_OTHER',select=-PARAMETER)
+sand <- subset(nlaPhabEx,PARAMETER=='SS_SAND',select=-PARAMETER)
+silt <- subset(nlaPhabEx,PARAMETER=='SS_SILT',select=-PARAMETER)
+wood <- subset(nlaPhabEx,PARAMETER=='SS_WOOD',select=-PARAMETER)
+
+shoreSubMets <- nlaShorelineSubstrate(bedrock,
+                                 boulder,
+                                 cobble,
+                                 gravel,
+                                 organic,
+                                 other,
+                                 sand,
+                                 silt,
+                                 wood)
+
+```
