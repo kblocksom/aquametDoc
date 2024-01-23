@@ -1,6 +1,6 @@
 ---
 title: "aquamet Documentation"
-date: Sys.date()
+date: "`r Sys.Date()`"
 format: 
   html: 
     code-fold: true
@@ -15,7 +15,7 @@ author:
     state: OR
 ---
 
-## Introduction
+# Introduction
 
 The purpose of this document is to provide guidance on using the *aquamet* R package. This package is used to calculate physical habitat metrics from raw field-collected data for the National Lakes Assessment (NLA) and the National Rivers and Streams Assessment (NRSA). In each of these National Aquatic Resource Surveys (NARS), hundreds to thousands of individual measurements are made at varying scales, depending on the measurement. These measurements are then combined into hundreds of metrics, a relatively small number of which are eventually used in physical habitat indicators. There are at least 10 functions for NLA and 15 functions for NRSA to calculate physical habitat metrics, and some require previously calculated metrics. Because the process is so complex, this document has been created to walk the user through the use of the functions.
 
@@ -27,7 +27,7 @@ The *aquamet* package is available as a tarball (tar.gz extension), which is muc
 devtools::install_local("path_to_file", dependencies = 'Imports', type="source")
 ```
 
-### Installing other necessary packages
+## Installing other necessary packages
 
 Because this package is not located on CRAN, you may need to install the following packages if you do not already have them installed: plyr, dplyr, reshape2, Hmisc, gtools, stringr, foreach, RUnit, and tidyr. This can be done in one statement, using the following code:
 
@@ -36,7 +36,7 @@ install.packages(c('plyr', 'dplyr', 'reshape2', 'Hmisc', 'gtools', 'stringr',
                    'foreach', 'Runit', 'tidyr'))
 ```
 
-## Getting started
+# Getting started
 
 First, we need to load the *aquamet* library. You will also want to ensure you have the `tidyr` package installed and loaded because we will use it to made data wider or longer, depending on our needs.
 
@@ -49,7 +49,7 @@ library(aquamet)
 
 The functions in the *aquamet* package are designed to be flexible, but they do assume certain data characteristics. Importantly, they assume there is a single variable that describes the site-visit, and that it is named `SITE`. Thus, if you have multiple visits to some sites in your data, you will need to create a new variable that combines this information and is named `SITE`.
 
-### NLA Example
+# NLA Example
 
 Included with the aquamet package are example datasets that we will use to walk through the steps of calculating metrics. We can take a peek at the NLA physical habitat example data using `head()`. The structure of this dataset already has the variable names of `SITE`, `STATION`, and `VALUE` that are expected and required by the NLA metrics functions. However, the inputs to each function are expected to be subsets of individual parameters in the dataset. Therefore, it is useful to see what the parameter names in the dataset are first.
 
@@ -73,7 +73,7 @@ It is obvious that there are large numbers of measurements in this dataset, and 
 
 Also note that parameters with the suffix of \_DD are measured in the drawdown zone when one is present, and those without the suffix are measured in the standard littoral or riparian zone, depending on the parameter. Metrics based only on drawdown parameters have \_DD added to the metric name, whereas those based only on the riparian or littoral data standard plots have a suffix of \_RIP or \_LIT, respectively. There are also \_SYN metrics which are synthesized by combining the drawdown and riparian data together and \_SIM metrics which combine drawdown and littoral data. These versions of the metrics are meant to simulate the way data were collected in 2007, which did not include drawdown plots. However, it is not important to understand the details of how these data are combined, because if you include both drawdown and riparian/littoral parameter data when you call functions, the functions will automatically output all three types of metrics. Functions that can produce \_SYN metrics are nlaHumanImpact(), nlaRiparianVegetation(), and the function that can produce \_SIM metrics is nlaFishCover(). If drawdown data were not recorded, the resulting metrics would simply be the \_RIP or \_LIT metrics. For the purposes of calculating physical habitat indicators, the \_SYN and \_LIT versions of metrics are used for data from 2012 onward.
 
-#### Calculating metrics
+## Calculating metrics
 
 Setting up the data for calculating metrics is much simpler and more straightforward for NLA data than for NRSA data. The NLA data are structured in a single format, with all data having the following main variables: SITE, STATION, PARAMETER, VALUE. Let's start by calculating aquatic macrophyte metrics using `nlaAquaticMacrophytes()`. There are several arguments to this function, with each representing the data for a particular parameter. The expected format of those input data are SITE, STATION, VALUE (the parameter value is assumed). We can use the names of the arguments as the guide to which parameter is expected.
 
@@ -114,7 +114,7 @@ names(aqmacroMets.wide)
 
 ```
 
-The output is a pretty simple dataset because the drawdown zone is not included in the calculations and there is only one version of each metric. Now we can perform the same preparation for the other NLA functions to get the full set of metrics. 
+The output is a pretty simple dataset because the drawdown zone is not included in the calculations and there is only one version of each metric. Now we can perform the same preparation for the other NLA functions to get the full set of metrics.
 
 We will need to update values for the parameter ANGLE because NEAR_VERTICAL_UNDERCUT is not a valid value. It must be updated to NEAR_VERTICAL in order to use in the function. Thus, we can update the full dataset for this value first. For certain other inputs, the VALUE variable must be converted to numeric to avoid an error.
 
@@ -148,10 +148,9 @@ unique(bankMets$METRIC)
                             
 ```
 
-Now that we can see the general format of inputting data to the function and the outputs, we will run the other metric functions, preparing the input data for each one first. 
+Now that we can see the general format of inputting data to the function and the outputs, we will run the other metric functions, preparing the input data for each one first.
 
-
-```{r calc-other_mets}
+```{r calc-other-mets-1}
 # Bottom Substrate
 bedrock <- subset(nlaPhabEx,PARAMETER=='BS_BEDROCK',select=-PARAMETER)
 boulder <- subset(nlaPhabEx,PARAMETER=='BS_BOULDER',select=-PARAMETER)
@@ -176,6 +175,7 @@ botSubMets <- nlaBottomSubstrate(bedrock,
                                  wood)
 
 head(botSubMets)
+unique(botSubMets$METRIC)
 
 # Shoreline Substrate
 bedrock <- subset(nlaPhabEx,PARAMETER=='SS_BEDROCK',select=-PARAMETER)
@@ -199,4 +199,165 @@ shoreSubMets <- nlaShorelineSubstrate(bedrock,
                                  silt,
                                  wood)
 
+head(shoreSubMets)
+unique(shoreSubMets$METRIC)
+
+# Fish Cover
+
+  aquatic <- subset(nlaPhabEx,PARAMETER=='FC_AQUATIC',select=-PARAMETER)
+  aquatic_dd <- subset(nlaPhabEx,PARAMETER=='FC_AQUATIC_DD',select=-PARAMETER)
+  boulders <- subset(nlaPhabEx,PARAMETER=='FC_BOULDERS',select=-PARAMETER)
+  boulders_dd <- subset(nlaPhabEx,PARAMETER=='FC_BOULDERS_DD',select=-PARAMETER)
+  brush <- subset(nlaPhabEx,PARAMETER=='FC_BRUSH',select=-PARAMETER)
+  brush_dd <- subset(nlaPhabEx,PARAMETER=='FC_BRUSH_DD',select=-PARAMETER)
+  ledges <- subset(nlaPhabEx,PARAMETER=='FC_LEDGES',select=-PARAMETER)
+  ledges_dd <- subset(nlaPhabEx,PARAMETER=='FC_LEDGES_DD',select=-PARAMETER)
+  livetrees <- subset(nlaPhabEx,PARAMETER=='FC_LIVETREES',select=-PARAMETER)
+  livetrees_dd <- subset(nlaPhabEx,PARAMETER=='FC_LIVETREES_DD',select=-PARAMETER)
+  overhang <- subset(nlaPhabEx,PARAMETER=='FC_OVERHANG',select=-PARAMETER)
+  overhang_dd <- subset(nlaPhabEx,PARAMETER=='FC_OVERHANG_DD',select=-PARAMETER)
+  snags <- subset(nlaPhabEx,PARAMETER=='FC_SNAGS',select=-PARAMETER)
+  snags_dd <- subset(nlaPhabEx,PARAMETER=='FC_SNAGS_DD',select=-PARAMETER)
+  structures <- subset(nlaPhabEx,PARAMETER=='FC_STRUCTURES',select=-PARAMETER)
+  structures_dd <- subset(nlaPhabEx,PARAMETER=='FC_STRUCTURES_DD',select=-PARAMETER)
+  drawdown <- subset(nlaPhabEx,PARAMETER=='DRAWDOWN',select=-PARAMETER)
+  
+  # Ensure VALUE is numeric for this particular subset
+  horizontalDistance_dd <- subset(nlaPhabEx,PARAMETER=='HORIZ_DIST_DD',
+     select=-PARAMETER)
+  horizontalDistance_dd$VALUE <- with(horizontalDistance_dd, as.numeric(VALUE))
+  
+  # Use defaults for fillinDrawdown, createSyntheticCovers, and coverClassInfo
+  # arguments
+  fishCovMets <- nlaFishCover(aquatic, aquatic_dd,
+                              boulders, boulders_dd,
+                              brush, brush_dd, 
+                              ledges, ledges_dd, 
+                              livetrees, livetrees_dd, 
+                              overhang, overhang_dd,
+                              snags, snags_dd, 
+                              structures, structures_dd, 
+                              drawdown, horizontalDistance_dd)
+  
+  head(fishCovMets)
+  unique(fishCovMets$METRIC)
 ```
+
+Where possible, we can subset the example dataset within the call to the metric function. This is demonstrated below. Sometimes, if a particular result must be converted to numeric, we may have to subset before calling the function.
+
+```{r calc-other-mets-2}
+  # Human Influence metrics
+  humInflMets <- nlaHumanImpact(
+    buildings = subset(nlaPhabEx,PARAMETER=='HI_BUILDINGS',select=-PARAMETER),
+    buildings_dd = subset(nlaPhabEx,PARAMETER=='HI_BUILDINGS_DD',select=-PARAMETER),
+    commercial = subset(nlaPhabEx,PARAMETER=='HI_COMMERCIAL',select=-PARAMETER),
+    commercial_dd = subset(nlaPhabEx,PARAMETER=='HI_COMMERCIAL_DD',select=-PARAMETER),
+    crops = subset(nlaPhabEx,PARAMETER=='HI_CROPS',select=-PARAMETER),
+    crops_dd = subset(nlaPhabEx,PARAMETER=='HI_CROPS_DD',select=-PARAMETER),
+    docks = subset(nlaPhabEx,PARAMETER=='HI_DOCKS',select=-PARAMETER),
+    docks_dd = subset(nlaPhabEx,PARAMETER=='HI_DOCKS_DD',select=-PARAMETER),
+    landfill = subset(nlaPhabEx,PARAMETER=='HI_LANDFILL',select=-PARAMETER),
+    landfill_dd = subset(nlaPhabEx,PARAMETER=='HI_LANDFILL_DD',select=-PARAMETER),
+    lawn = subset(nlaPhabEx,PARAMETER=='HI_LAWN',select=-PARAMETER),
+    lawn_dd = subset(nlaPhabEx,PARAMETER=='HI_LAWN_DD',select=-PARAMETER),
+    orchard = subset(nlaPhabEx,PARAMETER=='HI_ORCHARD',select=-PARAMETER),
+    orchard_dd = subset(nlaPhabEx,PARAMETER=='HI_ORCHARD_DD',select=-PARAMETER),
+    other = subset(nlaPhabEx,PARAMETER=='HI_OTHER',select=-PARAMETER),
+    other_dd = subset(nlaPhabEx,PARAMETER=='HI_OTHER_DD',select=-PARAMETER),
+    park = subset(nlaPhabEx,PARAMETER=='HI_PARK',select=-PARAMETER),
+    park_dd = subset(nlaPhabEx,PARAMETER=='HI_PARK_DD',select=-PARAMETER),
+    pasture = subset(nlaPhabEx,PARAMETER=='HI_PASTURE',select=-PARAMETER),
+    pasture_dd = subset(nlaPhabEx,PARAMETER=='HI_PASTURE_DD',select=-PARAMETER),
+    powerlines = subset(nlaPhabEx,PARAMETER=='HI_POWERLINES',select=-PARAMETER),
+    powerlines_dd = subset(nlaPhabEx,PARAMETER=='HI_POWERLINES_DD',select=-PARAMETER),
+    roads = subset(nlaPhabEx,PARAMETER=='HI_ROADS',select=-PARAMETER),
+    roads_dd = subset(nlaPhabEx,PARAMETER=='HI_ROADS_DD',select=-PARAMETER),
+    walls = subset(nlaPhabEx,PARAMETER=='HI_WALLS',select=-PARAMETER),
+    walls_dd = subset(nlaPhabEx,PARAMETER=='HI_WALLS_DD',select=-PARAMETER),
+    drawdown = subset(nlaPhabEx,PARAMETER=='DRAWDOWN',select=-PARAMETER),
+    horizontalDistance_dd = subset(nlaPhabEx,PARAMETER=='HORIZ_DIST_DD',select=-PARAMETER)
+  )
+  
+head(humInflMets)
+unique(humInflMets$METRIC)
+
+
+# Littoral Zone metrics
+litZoneMets <- nlaLittoralZone(littoralFilm = subset(nlaPhabEx, 
+                                PARAMETER=='SURFACE_FILM',select=-PARAMETER), 
+                               data2007=FALSE)
+
+head(litZoneMets)
+unique(litZoneMets$METRIC)
+
+# Riparian vegetation metrics
+ripVegMets <- nlaRiparianVegetation(
+  bigTrees = subset(nlaPhabEx,PARAMETER=='C_BIGTREES',select=-PARAMETER),
+  bigTrees_dd = subset(nlaPhabEx,PARAMETER=='C_BIGTREES_DD',select=-PARAMETER),
+  smallTrees = subset(nlaPhabEx,PARAMETER=='C_SMALLTREES',select=-PARAMETER),
+  smallTrees_dd = subset(nlaPhabEx,PARAMETER=='C_SMALLTREES_DD',select=-PARAMETER),
+  canopyType = subset(nlaPhabEx,PARAMETER=='CANOPY',select=-PARAMETER),
+  canopyType_dd = subset(nlaPhabEx,PARAMETER=='CANOPY_DD',select=-PARAMETER),
+  groundcoverBare = subset(nlaPhabEx,PARAMETER=='GC_BARE',select=-PARAMETER),
+  groundcoverBare_dd = subset(nlaPhabEx,PARAMETER=='GC_BARE_DD',select=-PARAMETER),
+  groundcoverInundated = subset(nlaPhabEx,PARAMETER=='GC_INUNDATED',select=-PARAMETER),
+  groundcoverInundated_dd = subset(nlaPhabEx,PARAMETER=='GC_INUNDATED_DD',select=-PARAMETER),
+  groundcoverNonwoody = subset(nlaPhabEx,PARAMETER=='GC_NONWOODY',select=-PARAMETER),
+  groundcoverNonwoody_dd = subset(nlaPhabEx,PARAMETER=='GC_NONWOODY_DD',select=-PARAMETER),
+  groundcoverWoody = subset(nlaPhabEx,PARAMETER=='GC_WOODY',select=-PARAMETER),
+  groundcoverWoody_dd = subset(nlaPhabEx,PARAMETER=='GC_WOODY_DD',select=-PARAMETER),
+  understoryNonwoody = subset(nlaPhabEx,PARAMETER=='U_NONWOODY',select=-PARAMETER),
+  understoryNonwoody_dd = subset(nlaPhabEx,PARAMETER=='U_NONWOODY_DD',select=-PARAMETER),
+  understoryWoody = subset(nlaPhabEx,PARAMETER=='U_WOODY',select=-PARAMETER),
+  understoryWoody_dd = subset(nlaPhabEx,PARAMETER=='U_WOODY_DD',select=-PARAMETER),
+  understoryType = subset(nlaPhabEx,PARAMETER=='UNDERSTORY',select=-PARAMETER),
+  understoryType_dd = subset(nlaPhabEx,PARAMETER=='UNDERSTORY_DD',select=-PARAMETER),
+  drawdown = subset(nlaPhabEx,PARAMETER=='DRAWDOWN',select=-PARAMETER),
+  horizontalDistance_dd = subset(nlaPhabEx,PARAMETER=='HORIZ_DIST_DD',select=-PARAMETER),
+)
+
+unique(ripVegMets$METRIC)
+
+# NLA station information
+isIsland <- subset(nlaPhabEx,PARAMETER=='ISLAND' & VALUE %in% c('YES','Y'),
+  select=-PARAMETER)
+  
+depth <- subset(nlaPhabEx,PARAMETER=='DEPTH_AT_STATION',select=-PARAMETER)
+depth$VALUE <- as.numeric(depth$VALUE)
+  
+statInfoMets <- nlaStationInformation(isIsland = isIsland, stationDepth = depth)
+
+unique(statInfoMets$METRIC)
+
+```
+
+Now we will want to combine all of the metrics into a single data frame and pivoting them wider for ease of use later.
+
+```{r combine-metrics}
+nlaMets <- rbind(aqmacroMets, bankMets, botSubMets, shoreSubMets, fishCovMets, 
+                 humInflMets, litZoneMets, ripVegMets, statInfoMets)
+```
+
+## Calculating indicators
+
+Now that all of the metrics have been calculated, we have much of the information needed to calculate the NLA physical habitat indicators and assign condition classes to each site. There are 5 indicators: NLA Drawdown Indicator (`nlaDrawdownIndicator()`), NLA Riparian Vegetation Complexity Indicator (`nlaRipVegCompIndicator()`), NLA Littoral Vegetation Complexity Indicator (`nlaLitVegCompIndicator()`), NLA Littoral-Riparian Vegetation Complexity Indicator (`nlaLitRipVegCompIndicator`), and the NLA Lakeshore Anthropogenic Disturbance Indicator (`nlaRipDistIndicator()`). For each of these functions, we require additional information about each site, such as latitude, longitude, lake area, lake elevation, ecoregion, and lake origin. Typically, these data would be obtained using GIS, but for our purposes, we will create example data in our code to provide all of the additional variables necessary to assign condition. The latitude and longitude represent the approximate center of the lake, and AG_ECO9 is the aggregated level 3 Omernik ecoregion where the center of the lake is located. The lake origin is assigned as either NATURAL or MAN_MADE, the lake area is in square kilometers, and the elevation is the lake surface elevation in meters above sea level.
+
+```{r create-site-variables}
+sitedata <- data.frame(SITE=c(6400, 6469, 6768, 6865, 6869, 7623, 8184, 8251, 8657, 1000048),
+                       AG_ECO9=c('SAP', 'SAP', 'TPL', 'NPL', 'XER', 'WMT', 'WMT', 'WMT', 'WMT','CPL'),
+                       LAKE_ORIGIN=c('MAN_MADE', 'MAN_MADE', 'MAN_MADE', 'NATURAL', 'MAN_MADE', 'NATURAL', 
+                                'MAN_MADE', 'MAN_MADE', 'NATURAL', 'MAN_MADE'), 
+                       LAT_DD=c(35.72678,36.12929,41.46944,48.00697,38.84754,45.86918,
+                                            40.05559,34.03126,48.568425306,33.067121087),
+                       LON_DD=c(-82.08422,-79.83690,-93.92054,-101.53242,-111.96139,-113.54893,
+                              -105.74708,-109.44311,-123.0735207,-95.73801377),
+                       ELEV=c(427.50,251.63,278.75,620.39,1589.51,2412.81,3029.04,2519.09,47.75,148.99),
+                       AREA=c(0.69732608,0.02485657,0.93282221,0.74152161,0.93174515,0.07763512,0.51027966,
+                               0.17282305,0.26395493,0.14714400))
+
+sitedata
+
+```
+
+### NLA Drawdown Indicator
+
