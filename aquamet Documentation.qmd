@@ -3,7 +3,8 @@ title: "aquamet Documentation"
 date: "`r Sys.Date()`"
 format: 
   html: 
-    code-fold: true
+    code-fold: show
+    code-tools: true
     embed-resources: true
     toc: true
 author: 
@@ -19,9 +20,11 @@ author:
 
 The purpose of this document is to provide guidance on using the *aquamet* R package. This package is used to calculate physical habitat metrics from raw field-collected data for the National Lakes Assessment (NLA) and the National Rivers and Streams Assessment (NRSA). In each of these National Aquatic Resource Surveys (NARS), hundreds to thousands of individual measurements are made at varying scales, depending on the measurement. These measurements are then combined into hundreds of metrics, a relatively small number of which are eventually used in physical habitat indicators. There are at least 10 functions for NLA and 15 functions for NRSA to calculate physical habitat metrics, and some require previously calculated metrics. Because the process is so complex, this document has been created to walk the user through the use of the functions.
 
+You will notice that code blocks are hidden by folding them up in the document, and clicking on the arrow next to `Code` will reveal the code used to produce output. If you hover in the upper right corner of each code block, you can copy the code to the clipboard and run it in your own session of R.
+
 ### Installing aquamet
 
-The *aquamet* package is available as a tarball (tar.gz extension), which is much like a zip file that combines all of the files needed to run the package. It can be installed as follows, but you will need to replace `path_to_file` with the actual path:
+The *aquamet* package is available as a tarball (tar.gz extension), which is much like a zip file that combines all of the files needed to run the package. It can be installed with the code below if needed, but you will need to replace `path_to_file` with the actual path. If you need to install this package, click the arrow next to `Code`, copy the code and paste to your R console, change the path to the location of the aquamet source file on your machine, and then run it.
 
 ```{r install-package, eval=FALSE}
 devtools::install_local("path_to_file", dependencies = 'Imports', type="source")
@@ -29,7 +32,7 @@ devtools::install_local("path_to_file", dependencies = 'Imports', type="source")
 
 ## Installing other necessary packages
 
-Because this package is not located on CRAN, you may need to install the following packages if you do not already have them installed: plyr, dplyr, reshape2, Hmisc, gtools, stringr, foreach, RUnit, and tidyr. This can be done in one statement, using the following code:
+Because this package is not located on CRAN, you may need to install the following packages if you do not already have them installed: plyr, dplyr, reshape2, Hmisc, gtools, stringr, foreach, RUnit, and tidyr. This can be done in one statement, using the code below. If you use RStudio, you can also simply use the Install option in the Packages tab to select all of the packages you need to install from CRAN.
 
 ```{r install-oth-pkgs, eval=FALSE}
 install.packages(c('plyr', 'dplyr', 'reshape2', 'Hmisc', 'gtools', 'stringr', 
@@ -38,13 +41,14 @@ install.packages(c('plyr', 'dplyr', 'reshape2', 'Hmisc', 'gtools', 'stringr',
 
 # Getting started
 
-First, we need to load the *aquamet* library. You will also want to ensure you have the `tidyr` package installed and loaded because we will use it to made data wider or longer, depending on our needs.
+First, we need to load the `aquamet` library. You will also want to ensure you have the `tidyr` package installed and loaded because we will use it to made data wider or longer, depending on our needs. There are also a few other packages that we may use for manipulating the data while preparing it for use with the `aquamet` package.
 
-```{r load-library}
+```{r load-library, echo=TRUE, message=FALSE}
 library(tidyr)
 library(plyr)
 library(dplyr)
 library(aquamet)
+library(Hmisc)
 ```
 
 The functions in the *aquamet* package are designed to be flexible, but they do assume certain data characteristics. Importantly, they assume there is a single variable that describes the site-visit, and that it is named `SITE`. Thus, if you have multiple visits to some sites in your data, you will need to create a new variable that combines this information and is named `SITE`.
@@ -334,30 +338,78 @@ unique(statInfoMets$METRIC)
 Now we will want to combine all of the metrics into a single data frame and pivoting them wider for ease of use later.
 
 ```{r combine-metrics}
-nlaMets <- rbind(aqmacroMets, bankMets, botSubMets, shoreSubMets, fishCovMets, 
-                 humInflMets, litZoneMets, ripVegMets, statInfoMets)
+nlaMets <- rbind(aqmacroMets, bankMets, botSubMets, shoreSubMets,
+                 fishCovMets, humInflMets, litZoneMets, 
+                 ripVegMets, statInfoMets) 
+
+mets_to_numeric <- subset(nlaMets, METRIC %nin% c('BFOANGLE', 'BSOPCLASS', 'BSOFCLASS', 'BSOCOLOR', 'BSOODOR', 'SSOPCLASS', 'SSOFCLASS', 'LZOFILM'), select = METRIC) |>
+  unique()
+
+nlaMets.wide <- pivot_wider(nlaMets, id_cols = 'SITE', names_from='METRIC', values_from='VALUE') |>
+  mutate(across(mets_to_numeric$METRIC, as.numeric))
 ```
 
 ## Calculating indicators
 
-Now that all of the metrics have been calculated, we have much of the information needed to calculate the NLA physical habitat indicators and assign condition classes to each site. There are 5 indicators: NLA Drawdown Indicator (`nlaDrawdownIndicator()`), NLA Riparian Vegetation Complexity Indicator (`nlaRipVegCompIndicator()`), NLA Littoral Vegetation Complexity Indicator (`nlaLitVegCompIndicator()`), NLA Littoral-Riparian Vegetation Complexity Indicator (`nlaLitRipVegCompIndicator`), and the NLA Lakeshore Anthropogenic Disturbance Indicator (`nlaRipDistIndicator()`). For each of these functions, we require additional information about each site, such as latitude, longitude, lake area, lake elevation, ecoregion, and lake origin. Typically, these data would be obtained using GIS, but for our purposes, we will create example data in our code to provide all of the additional variables necessary to assign condition. The latitude and longitude represent the approximate center of the lake, and AG_ECO9 is the aggregated level 3 Omernik ecoregion where the center of the lake is located. The lake origin is assigned as either NATURAL or MAN_MADE, the lake area is in square kilometers, and the elevation is the lake surface elevation in meters above sea level.
+Now that all of the metrics have been calculated, we have much of the information needed to calculate the NLA physical habitat indicators and assign condition classes to each site. There are 5 indicators: NLA Drawdown Indicator (`nlaDrawdownIndicator()`), NLA Riparian Vegetation Complexity Indicator (`nlaRipVegCompIndicator()`), NLA Littoral Vegetation Complexity Indicator (`nlaLitVegCompIndicator()`), NLA Littoral-Riparian Vegetation Complexity Indicator (`nlaLitRipVegCompIndicator`), and the NLA Lakeshore Anthropogenic Disturbance Indicator (`nlaRipDistIndicator()`). For each of these indicators, we may require additional information about each site, such as latitude, longitude, lake area, lake elevation, ecoregion, and lake origin. This is because all of the physical habitat indicators except the NLA Lakeshore Anthropogenic Disturbance Indicator compare the observed value for a particular indicator with a modeled site-specific expectation. Typically, the site-related data would be obtained using GIS, but for our purposes, we will create example data in our code to provide all of the additional variables necessary to assign condition. The latitude and longitude represent the approximate center of the lake, and AG_ECO9 is the aggregated level 3 Omernik ecoregion where the center of the lake is located. The lake origin is assigned as either NATURAL or MAN_MADE, the lake area is in square kilometers, and the elevation is the lake surface elevation in meters above sea level.
 
 ```{r create-site-variables}
-sitedata <- data.frame(SITE=c(6400, 6469, 6768, 6865, 6869, 7623, 8184, 8251, 8657, 1000048),
-                       AG_ECO9=c('SAP', 'SAP', 'TPL', 'NPL', 'XER', 'WMT', 'WMT', 'WMT', 'WMT','CPL'),
-                       LAKE_ORIGIN=c('MAN_MADE', 'MAN_MADE', 'MAN_MADE', 'NATURAL', 'MAN_MADE', 'NATURAL', 
-                                'MAN_MADE', 'MAN_MADE', 'NATURAL', 'MAN_MADE'), 
-                       LAT_DD=c(35.72678,36.12929,41.46944,48.00697,38.84754,45.86918,
-                                            40.05559,34.03126,48.568425306,33.067121087),
-                       LON_DD=c(-82.08422,-79.83690,-93.92054,-101.53242,-111.96139,-113.54893,
-                              -105.74708,-109.44311,-123.0735207,-95.73801377),
-                       ELEV=c(427.50,251.63,278.75,620.39,1589.51,2412.81,3029.04,2519.09,47.75,148.99),
-                       AREA=c(0.69732608,0.02485657,0.93282221,0.74152161,0.93174515,0.07763512,0.51027966,
-                               0.17282305,0.26395493,0.14714400))
+sitedata <- data.frame(SITE=c(6400, 6469, 6768, 6865, 6869, 7623, 
+                              8184, 8251, 8657, 1000048),
+                       AG_ECO9=c('SAP', 'SAP', 'TPL', 'NPL', 'XER',
+                                 'WMT', 'WMT', 'WMT', 'WMT','CPL'),
+                       LAKE_ORIGIN=c('MAN_MADE', 'MAN_MADE',
+                                     'MAN_MADE', 'NATURAL', 
+                                     'MAN_MADE', 'NATURAL', 
+                                     'MAN_MADE', 'MAN_MADE', 
+                                     'NATURAL', 'MAN_MADE'), 
+                       LAT_DD=c(35.72678, 36.12929, 41.46944, 
+                                48.00697, 38.84754, 45.86918, 
+                                40.05559, 34.03126, 48.568425306, 
+                                33.067121087),
+                       LON_DD=c(-82.08422, -79.83690, -93.92054, 
+                                -101.53242, -111.96139, -113.54893,
+                                -105.74708, -109.44311, 
+                                -123.0735207, -95.73801377),
+                       ELEV=c(427.50, 251.63, 278.75, 620.39, 
+                              1589.51, 2412.81, 3029.04, 2519.09,
+                              47.75, 148.99),
+                       AREA=c(0.69732608, 0.02485657, 0.93282221, 
+                              0.74152161, 0.93174515, 0.07763512, 
+                              0.51027966, 0.17282305, 0.26395493, 
+                              0.14714400))
 
 sitedata
+
+indicIn <- merge(sitedata, nlaMets.wide, by = 'SITE')
 
 ```
 
 ### NLA Drawdown Indicator
 
+We will start with the drawdown indicator, which requires the aggregated ecoregion and the lake origin as inputs, as well as metrics related to horizontal and vertical drawdown: mean vertical drawdown (BFXVERTHEIGHT_DD) and mean horizontal drawdown (BFXHORIZDIST_DD), both from the `nlaBankFeatures` function. The `nlaDrawdownIndicator` function typically provides 3 output variables, one assigning a class to vertical drawdown and one for horizontal drawdown, then one for overall drawdown condition (`DRAWDOWN_COND`). Each of these assigns a class with possible values of Small, Medium, or Large. For only 2017 data, there is a different indicator used that only assigns values of Not Large or Large, due to data collection issues.
+
+```{r drawdown}
+drawdownCond <- nlaDrawdownIndicator(indicIn, sampID='SITE', 
+                                     bfxVertDD='BFXVERTHEIGHT_DD', 
+                                     bfxHorizDD='BFXHORIZDIST_DD', 
+                                     ecoreg='AG_ECO9', 
+                                     lake_origin='LAKE_ORIGIN')
+
+drawdownCond
+```
+
+### NLA Lakeshore Anthropogenic Disturbance Indicator
+
+This is the only indicator that is not site-specific. It is based on the metrics from the `nlaHumanImpact` function, specifically those synthesized from the standard and drawdown plots to simulate the NLA 2007 approach. These are metrics ending in SYN representing the index of agricultural influences (HIIAG_SYN), the index of non-agricultural influences (HIINONAGSYN), and the fractional presence of any human influence in station plots (HIFPANYCIRCA_SYN).
+
+The output of the indicator function is the calculated indicator value (RDis_IX) and the condition class assignment (RDIS_COND), with values of Good/Fair/Poor.
+
+```{r rip-dist}
+ripdistCond <- nlaRipDistIndicator(indicIn, sampID = 'SITE',
+                                   hiiAg = 'HIIAG_SYN', 
+                                   hiiNonAg = 'HIINONAG_SYN',
+                                   hifpAnyCirca = 'HIFPANYCIRCA_SYN')
+
+ripdistCond 
+```
