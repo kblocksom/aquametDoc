@@ -413,3 +413,82 @@ ripdistCond <- nlaRipDistIndicator(indicIn, sampID = 'SITE',
 
 ripdistCond 
 ```
+
+### NLA Riparian Vegetation Complexity Indicator
+
+This indicator requires a large number of site-related variables, including: latitude, longitude, lake origin, lake area, elevation, and ecoregion. It also requires a number of physical habitat metrics to calculate the value used to assign condition. These include riparian vegetation, shoreline substrate, and human impact metrics, listed below with descriptions.
+
+| Argument         | Metric               | Description                                                                     |
+|-------------------|----------------------|-------------------------------|
+| rviWoody         | RVI_WOODY_SYN        | Index of total woody vegetations cover, synthesizing the 2007 protocol          |
+| rvfcGndInundated | RVFCGNDINUNDATED_SYN | Fraction of ground cover by inundation synthesizing the 2007 protocol           |
+| rvfcUndWoody     | RVFCUNDWOODY_SYN     | Fraction of understory cover by woody vegetation synthesizing the 2007 protocol |
+| rvfcGndWoody     | RVFCGNDWOODY_SYN     | Fraction of ground cover by woody vegetation synthesizing the 2007 protocol     |
+| rvfpCanBig       | RVFPCANBIG_SYN       | Fraction of canopy with large trees present synthesizing the 2007 protocol      |
+| ssfcBedrock      | SSFCBEDROCK          | Fractional cover of bedrock using SS_BEDROCK                                    |
+| ssfcBoulders     | SSFCBOULDERS         | Fractional cover of bedrock using SS_BOULDER                                    |
+| hipwWalls        | HIPWWALLS_SYN        | Weighted presence of Walls synthesizing the 2007 protocol                       |
+
+```{r ripveg-comp}
+ripvegOut <- nlaRipVegCompIndicator(indicIn, 
+                                    sampID='SITE', 
+                                    lat='LAT_DD', 
+                                    lon='LON_DD',
+                                    lake_origin='LAKE_ORIGIN',
+                                    area='AREA', 
+                                    elev='ELEV', 
+                                    ecoreg='AG_ECO9', 
+                                    rviWoody='RVIWOODY_SYN',
+                                    rvfcGndInundated = 'RVFCGNDINUNDATED_SYN', 
+                                    rvfcUndWoody='RVFCUNDWOODY_SYN', 
+                                    rvfcGndWoody='RVFCGNDWOODY_SYN',
+                                    rvfpCanBig='RVFPCANBIG_SYN',
+                                    ssfcBedrock='SSFCBEDROCK', 
+                                    ssfcBoulders='SSFCBOULDERS', 
+                                    hipwWalls='HIPWWALLS_SYN')
+
+ripvegOut
+```
+
+The output of this function provides three variables along with the condition variable. RVegQ represents the observed riparian vegetation complexity and RVegQc3x15 is the site-specific expectation for riparian complexity, based site-related input variables. RVegQc3OE is the observed/expected ratio used to assign the condition class.
+
+These results show that when any critical metrics are missing, Not Assessed is assigned as the condition. In this example, SITE 8251 is missing a few important variables for riparian vegetation.
+
+### NLA Littoral Vegetation Complexity Indicator
+
+This indicator also requires latitude, longitude, lake origin, lake area, lake elevation, and ecoregion. The 9 metrics listed below, related to fish cover and aquatic macrophytes, are required as inputs for calculation of this indicator.
+
+| Argument      | Metric            | Description                                                        |
+|-------------------|--------------------|---------------------------------|
+| fciNatural    | FCINATURAL_LIT    | Index of fish cover due to natural structures in the littoral zone |
+| fcfcSnag      | FCFCSNAGS_LIT     | Fractional cover of snags in the littoral zone                     |
+| amfcFloating  | AMFCFLOATING      | Fractional cover of floating macrophytes                           |
+| amfcEmergent  | AMFCEMERGENT      | Fractional cover of emergent macrophytes                           |
+| fcfcBoulders  | FCFCBOULDERS_LIT  | Fractional cover of boulders in the littoral zone                  |
+| fcfcBrush     | FCFCBRUSH_LIT     | Fractional cover of brush in the littoral zone                     |
+| fcfcLedges    | FCFCLEDGES_LIT    | Fractional cover of ledges in the littoral zone                    |
+| fcfcLiveTrees | FCFCLIVETREES_LIT | Fractional cover of live trees in the littoral zone                |
+| fcfcOverhang  | FCFCOVERHANG_LIT  | Fractional cover of overhangs in the littoral zone                 |
+
+```{r litveg-comp}
+litvegOut <- nlaLitVegCompIndicator(indicIn, sampID='SITE',
+                                    lat='LAT_DD', 
+                                    lon='LON_DD', 
+                                    lake_origin='LAKE_ORIGIN', 
+                                    area='AREA', 
+                                    elev='ELEV',
+                                    ecoreg='AG_ECO9', 
+                                    fciNatural='FCINATURAL_LIT', 
+                                    fcfcSnag='FCFCSNAGS_LIT', 
+                                    amfcFloating='AMFCFLOATING', 
+                                    amfcEmergent='AMFCEMERGENT', 
+                                    fcfcBoulders='FCFCBOULDERS_LIT', 
+                                    fcfcBrush='FCFCBRUSH_LIT', 
+                                    fcfcLedges='FCFCLEDGES_LIT', 
+                                    fcfcLiveTrees='FCFCLIVETREES_LIT', 
+                                    fcfcOverhang='FCFCOVERHANG_LIT')
+
+litvegOut
+```
+
+Similarly to the riparian vegetation complexity indicator output, the observed littoral vegetation complexity (LitCvrQ), the site-specific expected value (LitCvrQc3x15), and the observed/expected ratio (LitCvrQc3OE) are all provided by the \`nlaLitVegCompIndicator\` function. The LITCVR_COND represents the condition class assigned based on the latter value.
