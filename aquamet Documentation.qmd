@@ -387,7 +387,7 @@ indicIn <- merge(sitedata, nlaMets.wide, by = 'SITE')
 
 ### NLA Drawdown Indicator
 
-We will start with the drawdown indicator, which requires the aggregated ecoregion and the lake origin as inputs, as well as metrics related to horizontal and vertical drawdown: mean vertical drawdown (BFXVERTHEIGHT_DD) and mean horizontal drawdown (BFXHORIZDIST_DD), both from the `nlaBankFeatures` function. The `nlaDrawdownIndicator` function typically provides 3 output variables, one assigning a class to vertical drawdown and one for horizontal drawdown, then one for overall drawdown condition (`DRAWDOWN_COND`). Each of these assigns a class with possible values of Small, Medium, or Large. For only 2017 data, there is a different indicator used that only assigns values of Not Large or Large, due to data collection issues.
+We will start with the drawdown indicator, which measures the lake drawdown exposure. This function requires the aggregated ecoregion and the lake origin as inputs, as well as metrics related to horizontal and vertical drawdown: mean vertical drawdown (BFXVERTHEIGHT_DD) and mean horizontal drawdown (BFXHORIZDIST_DD), both from the `nlaBankFeatures` function. The `nlaDrawdownIndicator` function typically provides 3 output variables, one assigning a class to vertical drawdown and one for horizontal drawdown, then one for overall drawdown condition (`DRAWDOWN_COND`). Each of these assigns a class with possible values of Small, Medium, or Large. For only 2017 data, there is a different indicator used that only assigns values of Not Large or Large, due to data collection issues.
 
 ```{r drawdown}
 drawdownCond <- nlaDrawdownIndicator(indicIn, sampID='SITE', 
@@ -416,7 +416,7 @@ ripdistCond
 
 ### NLA Riparian Vegetation Complexity Indicator
 
-This indicator requires a large number of site-related variables, including: latitude, longitude, lake origin, lake area, elevation, and ecoregion. It also requires a number of physical habitat metrics to calculate the value used to assign condition. These include riparian vegetation, shoreline substrate, and human impact metrics, listed below with descriptions.
+This indicator measures the riparian vegetation cover on the lakeshore. The function requires a large number of site-related variables, including: latitude, longitude, lake origin, lake area, elevation, and ecoregion. It also requires a number of physical habitat metrics to calculate the value used to assign condition. These include riparian vegetation, shoreline substrate, and human impact metrics, listed below with descriptions. The metrics come from the `nlaRiparianVegetation()`, `nlaShorelineSubstrate()`, and `nlaHumanImpact()` functions.
 
 | Argument         | Metric               | Description                                                                     |
 |-------------------|----------------------|-------------------------------|
@@ -456,7 +456,7 @@ These results show that when any critical metrics are missing, Not Assessed is a
 
 ### NLA Littoral Vegetation Complexity Indicator
 
-This indicator also requires latitude, longitude, lake origin, lake area, lake elevation, and ecoregion. The 9 metrics listed below, related to fish cover and aquatic macrophytes, are required as inputs for calculation of this indicator.
+This indicator measures the shallow water habitat of the lake. This function also requires latitude, longitude, lake origin, lake area, lake elevation, and ecoregion. The 9 metrics listed below, related to fish cover and aquatic macrophytes, are required as inputs for calculation of this indicator. These metrics come from the `nlaAquaticMacrophytes()` and `nlaFishCover()` functions.
 
 | Argument      | Metric            | Description                                                        |
 |-------------------|--------------------|---------------------------------|
@@ -492,3 +492,52 @@ litvegOut
 ```
 
 Similarly to the riparian vegetation complexity indicator output, the observed littoral vegetation complexity (LitCvrQ), the site-specific expected value (LitCvrQc3x15), and the observed/expected ratio (LitCvrQc3OE) are all provided by the \`nlaLitVegCompIndicator\` function. The LITCVR_COND represents the condition class assigned based on the latter value.
+
+Also, there is one site with the assignment of 'Not Assessed'. This is because there were no aquatic macrophyte data collected for that site.
+
+### NLA Littoral-Riparian Vegetation Complexity Indicator
+
+Finally, we will use the results from the littoral and riparian vegetation complexity indicators to calculate indicator values and condition classes for the combined indicator of overall lake habitat complexity. This function requires latitude, longitude, lake origin, lake area, lake elevation, aggregated ecoregion, and the two variables for observation littoral and riparian vegetation complexity, `LitCvrQ` and `RVegQ`.
+
+Note that there are cases where the condition class is 'Not Assessed'. This is because one site was missing the riparian vegetation complexity indicator and one the littoral complexity indicator.
+
+```{r lit-rip-comp}
+litripIn <- merge(sitedata, litvegOut, by='SITE') |>
+  merge(ripvegOut, by='SITE')
+
+litripOut <- nlaLitRipVegCompIndicator(litripIn,
+                                       sampID='SITE',
+                                       lat='LAT_DD',
+                                       lon='LON_DD',
+                                       lake_origin='LAKE_ORIGIN',
+                                       area='AREA',
+                                       elev='ELEV',
+                                       ecoreg='AG_ECO9', 
+                                       rvegq='RVegQ',
+                                       litcvrq='LitCvrQ')
+
+litripOut
+```
+
+Now we have calculated all of the NLA physical habitat indicators, going from raw data to the final classes used in the assessment.
+
+# NRSA Example
+
+Now that we have gone through a simpler example with NLA, we can move on to NRSA, which has a much more complicated data structure. The reason for the increased complexity is two-fold: the NRSA has different field methods for wadeable and boatable sites, and there are various scales at which data are collected in each (e.g., transect level, stations between transects, and along the banks). The data are thus stored in separate tables, depending on the data structure, unlike the NLA data, which can be stored in a single table.
+
+As we go through this example, we will explain for each metric calculation function which type of system the data would come from and the type of data (based on field forms). For the NRSA example, there are a number of different example datasets, which are separated by data type and structure. The datasets are described below.
+
+| Dataset        | Description                                                                                                                                                                      |
+|-----------------|-------------------------------------------------------|
+| bankgeomEx     | Bank geometry characteristics for both boatable and wadeable streams, by TRANSECT and BANK (LF, RT, or NONE, depending on measurement)                                           |
+| chancharEx     | Overall channel characteristics for both boatable and wadeable streams by TRANSECT (NONE for this subset of data)                                                                |
+| chandepthEx    | Channel depth in littoral area in boatable sites, by TRANSECT and LINE (1-5)                                                                                                     |
+| changeomEx     | Slope and bearing measurements by TRANSECT (and LINE if necessary)                                                                                                               |
+| channelcoverEx | Channel canopy cover measurements (i.e., densiometer readings), by TRANSECT and BANK (i.e., CD, CL, CR, CU, LF, RT), which represents the position and direction of measurements |
+| channelxsectEx | Channel cross-section                                                                                                                                                            |
+| fishcoverEx    | Fish cover                                                                                                                                                                       |
+| littoralEx     | Littoral                                                                                                                                                                         |
+| thalwegEx      | Thalweg measurements                                                                                                                                                             |
+| visitsEx       | Visit information for example sites indicating type of sampling used                                                                                                             |
+| visripEx       | Visual riparian estimates                                                                                                                                                        |
+| woodEx         | Large woody debris estimates                                                                                                                                                     |
