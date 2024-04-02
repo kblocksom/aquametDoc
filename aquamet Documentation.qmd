@@ -528,6 +528,8 @@ Now that we have gone through a simpler example with NLA, we can move on to NRSA
 
 As we go through this example, we will explain for each metric calculation function which type of system the data would come from and the type of data (based on field forms). For the NRSA example, there are a number of different example datasets, which are separated by data type and structure. The datasets are described below.
 
+## Example datasets
+
 | Dataset       | Description                                                                                                                                                                                                 |
 |-------------------|-----------------------------------------------------|
 | nrsaChanconst | Channel constraint characteristics for entire site.                                                                                                                                                         |
@@ -542,14 +544,14 @@ As we go through this example, we will explain for each metric calculation funct
 
 We can take a quick look at each dataset to see what the data look like.
 
-#### nrsaChanconst
+### nrsaChanconst
 
 ```{r nrsa-chanconst}
 head(nrsaChanconst)
 str(nrsaChanconst)
 ```
 
-#### nrsaChannel
+### nrsaChannel
 
 This data frame contains a large number of different types of data, so it is useful to look at all of the combinations of sample types and parameters.
 
@@ -561,7 +563,7 @@ unique(nrsaChannel[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
   arrange(SAMPLE_TYPE, PARAMETER)
 ```
 
-#### nrsaChanrip
+### nrsaChanrip
 
 ```{r nrsa-chanrip}
 head(nrsaChanrip)
@@ -571,15 +573,245 @@ unique(nrsaChanrip[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
   arrange(SAMPLE_TYPE, PARAMETER)
 ```
 
-#### nrsaChanxsec
+### nrsaChanxsec
 
 This is for wadeable sites only.
 
-```{r}
+```{r nrsa-chanxsec}
 head(nrsaChanxsec)
 str(nrsaChanxsec)
 
 unique(nrsaChanxsec[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
   arrange(SAMPLE_TYPE, PARAMETER)
+```
+
+### nrsaInvleg
+
+We will show calculations using these data, but note that these measurements are no longer collected, though related but simplified measurements are still collected on the Site Assessment form. 
+
+```{r nrsa-invleg}
+head(nrsaInvleg)
+str(nrsaInvleg) 
+
+unique(nrsaInvleg$PARAMETER)
+
+```
+
+### nrsaLittoral
+
+These are littoral depth measurements only collected in boatable sites along the shoreline. 
+
+```{r nrsa-littoral}
+head(nrsaLittoral)
+str(nrsaLittoral) 
+
+unique(nrsaLittoral$PARAMETER)
+```
+
+### nrsaSlope
+
+These are slope and bearing measurements. These are typically only measured in the field for wadeable sites and calculated for boatable sites using GIS. In our example data from the NRSA 2008-9 survey, however, field crews measured slope and bearing at both boatable and wadeable sites.
+
+```{r nrsa-slope}
+head(nrsaSlope)
+str(nrsaSlope)
+
+unique(nrsaSlope$PARAMETER)
+```
+
+### nrsaThalweg
+
+Thalweg depth measurements for both boatable and wadeable sites, with different measurements in each type of site. 
+
+```{r nrsa-thalweg}
+head(nrsaThalweg)
+str(nrsaThalweg)
+
+unique(nrsaThalweg[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
+  arrange(SAMPLE_TYPE, PARAMETER)
+```
+### nrsaVisits
+
+This is just a simple data frame to identify sites as wadeable or boatable.
+
+```{r nrsaVisits}
+nrsaVisits
+```
+
+## Calculating metrics 
+
+### NRSA bank morphology metrics
+
+These are calculated using the `nrsaBankMorphology()` function, and data are provided separately for boatable and wadeable sites. 
+
+```{r nrsaBankMorph}
+chanrip <- filter(nrsaChanrip, PARAMETER %in% c('ANGLE','UNDERCUT')) 
+chan <- filter(nrsaChannel, PARAMETER == 'BKANGLE')
+
+bankMorphMets <- nrsaBankMorphology(bAngle = select(chan, SITE, VALUE), 
+                        wAngle = subset(chanrip, PARAMETER=='ANGLE') |> 
+                          mutate(VALUE=as.numeric(VALUE)) |>
+                          select(SITE, VALUE),
+                        wUndercut = subset(chanrip, PARAMETER=='UNDERCUT') |>
+                          mutate(VALUE=as.numeric(VALUE)) |>
+                          select(SITE, VALUE)
+                        )
+
+unique(bankMorphMets$METRIC)
+
+```
+
+### NRSA canopy densiometer metrics
+
+These metrics are calculated using the `nrsaCanopyDensiometer()` function, and all data come from the `nrsaChanrip` dataset.
+
+```{r nrsaCanopyDensio}
+canDensMets <- nrsaCanopyDensiometer(bDensiom = nrsaChanrip |> 
+                                     subset(SAMPLE_TYPE=='CANCOVERB' & PARAMETER=='DENSIOM') |> 
+                                     dplyr::rename(DIRECTION=BANK) |> 
+                                     subset(VALUE %nin% c('',NA,'NA')) |> 
+                                     mutate(VALUE=as.numeric(VALUE)) |>
+                                     select(SITE, VALUE),
+                           wDensiom = nrsaChanrip |> 
+                                     subset(SAMPLE_TYPE=='CANCOVERW' & PARAMETER=='DENSIOM') |>
+                                     dplyr::rename(DIRECTION=BANK) |> 
+                                     subset(VALUE %nin% c('',NA,'NA')) |> 
+                                     mutate(VALUE=as.numeric(VALUE)) |>
+                                     select(SITE, DIRECTION, VALUE)
+                           )
+
+head(canDensMets)
+unique(canDensMets$METRIC)
+```
+
+### NRSA channel characteristics
+
+Channel characteristics metrics are calculated by the `nrsaChannelChar()` function.
+
+```{r nrsaChannelChar}
+chanCharMets <- nrsaChannelChar(
+                     bankfullWidth = nrsaChanconst |> 
+                       subset(PARAMETER == 'BANKFULL') |> 
+                       select(SITE, VALUE) |> 
+                       mutate(VALUE=as.numeric(VALUE)),
+                     channelPattern = nrsaChanconst |> 
+                       subset(PARAMETER == 'PATTERN') |>
+                       select(SITE, VALUE),
+                     constraintFeatures = nrsaChanconst |>
+                       subset(PARAMETER == 'FEATURES') |> 
+                       select(SITE, VALUE),
+                     constraintMultiple = nrsaChannel |> 
+                       subset(PARAMETER == 'CONSTRT') |>
+                       select(SITE, VALUE),
+                     constraintSingle = nrsaChanconst |> 
+                       subset(PARAMETER == 'CONSTRNT') |>
+                       select(SITE, VALUE),
+                     constraintPercent = nrsaChanconst |> 
+                       subset(PARAMETER == 'PERCENT') |>
+                       select(SITE, VALUE) |>
+                       mutate(VALUE=as.numeric(VALUE)),
+                     seeOverBank = nrsaChannel |>
+                       subset(PARAMETER == 'SEEOVRBK') |> 
+                       select(SITE, VALUE),
+                     shoreToVegDistance = nrsaChannel |>
+                       subset(PARAMETER == 'SHOR2RIP') |>
+                       select(SITE, VALUE) |>
+                       mutate(VALUE=as.numeric(VALUE)),
+                     valleyConstraintUnseen = nrsaChanconst |> 
+                       subset(PARAMETER == 'VALLEYBOX') |>
+                       select(SITE, VALUE),
+                     valleyWidth = nrsaChanconst |> 
+                       subset(PARAMETER == 'VALLEY') |>
+                       select(SITE, VALUE) |>
+                       mutate(VALUE=as.numeric(VALUE))
+                     )
+
+unique(chanCharMets$METRIC)
+```
+
+### NRSA Channel Habitat 
+
+To calculate channel habitat metrics, which are based on thalweg depth measurements, use the function `nrsaChannelHabitat()`. We need to separate the boatable and wadeable data for these calculations.
+
+```{r nrsaChannelHabitat}
+
+chanHabMets <- nrsaChannelHabitat(
+  bChannelUnit = nrsaThalweg |> 
+    subset(PARAMETER=='CHANUNCD' & SAMPLE_TYPE=='THALB') |> 
+    mutate(VALUE=trimws(VALUE)) |>
+    select(SITE, VALUE),
+  wChannelUnit = nrsaThalweg |> 
+    subset(PARAMETER=='CHANUNCD' & SAMPLE_TYPE=='THALW') |>
+    mutate(VALUE=ifelse(VALUE=='PO', 'P', trimws(VALUE))) |>
+    select(SITE, VALUE))
+
+unique(chanHabMets$METRIC)
+```
+
+### NRSA Channel Morphology
+
+To calculate channel morphology metrics, we use the function `nrsaChannelMorphology()`. The wadeable and boatable data are separate inputs to the function.
+
+```{r nrsaChannelMorphology}
+thalweg <- nrsaThalweg |>
+  filter(PARAMETER %in% c('DEPTH','DEPTH_UNITS','WETWIDTH','POLE','SONAR')) |> 
+  mutate(VALUE=trimws(VALUE))
+
+channel <- nrsaChannel |>
+  filter(PARAMETER %in% c('BANKWID', 'WETWID', 'INCISED','BANKHT')) |> 
+  mutate(VALUE=trimws(VALUE), UNITS='M')
+
+wthalDepth <- nrsaThalweg |> 
+              subset(PARAMETER %in% c('DEPTH')) |> 
+              select(-PARAMETER) %>% mutate(UNITS='CM') |>
+              subset(VALUE %nin% c(NA,''))
+bthalDepth <- merge(subset(thalweg, PARAMETER %in% c('POLE','SONAR')) |> 
+                      select(-PARAMETER),
+                   subset(thalweg, PARAMETER %in% c('DEPTH_UNITS')) |> 
+                     dplyr::rename(UNITS=VALUE) |>
+                     select(-PARAMETER, -STATION), 
+                   by=c('SITE','SAMPLE_TYPE','TRANSECT'),
+                   all.x=TRUE
+                   ) |>
+              mutate(UNITS = ifelse(is.na(UNITS), '', UNITS)) 
+
+verification <- nrsaVisits |>
+  mutate(VALXSITE=trimws(VALXSITE))
+
+wadedSites <- filter(verification, VALXSITE=='WADEABLE')$SITE
+# NOTE: site 138500 is classed as boatable but has wadeable data.  There are 300 sites with NONE protocol, but those don't show up here.
+
+chanMorphMets <- nrsaChannelMorphology(
+  bBankHeight = subset(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('BANKHT')) |>
+    mutate(VALUE=as.numeric(VALUE), UNITS='M') |> 
+    select(SITE, TRANSECT, VALUE, UNITS),
+  bBankWidth = subset(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('BANKWID')) |>
+    mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
+    select(SITE, TRANSECT, VALUE, UNITS),
+  bDepth = bthalDepth |> 
+    mutate(VALUE=as.numeric(VALUE)) |>
+    select(SITE, TRANSECT, STATION, VALUE, UNITS),
+  bIncisedHeight = subset(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('INCISED')) |>
+    mutate(VALUE=as.numeric(VALUE), UNITS='M') |> 
+    select(SITE, TRANSECT, VALUE, UNITS),
+  bWettedWidth = subset(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('WETWID')) |>
+    mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
+    select(SITE, TRANSECT, VALUE, UNITS),
+  wBankHeight = subset(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('BANKHT')) |>
+    mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
+    select(SITE, TRANSECT, VALUE, UNITS),
+  wBankWidth = subset(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('BANKWID')) |>
+    mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
+    select(SITE, TRANSECT, VALUE, UNITS),
+  wDepth = wthalDepth |> 
+    mutate(VALUE=as.numeric(VALUE)) |> 
+    select(SITE, TRANSECT, STATION, VALUE, UNITS),
+  wIncisedHeight =subset(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('INCISED'), UNITS='M') |>
+    mutate(VALUE=as.numeric(VALUE)) |>
+    select(SITE, TRANSECT, VALUE, UNITS),
+  wWettedWidth = subset(nrsaThalweg, SAMPLE_TYPE=='THALW' & PARAMETER %in% c('WETWIDTH'), UNITS='M') |>
+    mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
+    select(SITE, TRANSECT, STATION, VALUE, UNITS)
+  )
 ```
 
