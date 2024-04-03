@@ -806,12 +806,67 @@ chanMorphMets <- nrsaChannelMorphology(
   wDepth = wthalDepth |> 
     mutate(VALUE=as.numeric(VALUE)) |> 
     select(SITE, TRANSECT, STATION, VALUE, UNITS),
-  wIncisedHeight =subset(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('INCISED'), UNITS='M') |>
-    mutate(VALUE=as.numeric(VALUE)) |>
+  wIncisedHeight =subset(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('INCISED')) |>
+    mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
     select(SITE, TRANSECT, VALUE, UNITS),
-  wWettedWidth = subset(nrsaThalweg, SAMPLE_TYPE=='THALW' & PARAMETER %in% c('WETWIDTH'), UNITS='M') |>
+  wWettedWidth = subset(nrsaThalweg, SAMPLE_TYPE=='THALW' & PARAMETER %in% c('WETWIDTH')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
     select(SITE, TRANSECT, STATION, VALUE, UNITS)
   )
+
+unique(chanMorphMets$METRIC)
+```
+
+### NRSA Fish Cover
+
+Unsurprisingly at this point, fish cover metrics are calculated using the function `nrsaFishCover()`. The data for these metrics are located in the example dataset `nrsaChannel`.
+
+```{r nrsaFishCover}
+fishCovMets <- nrsaFishCover(
+  algae = nrsaChannel |> 
+    subset(PARAMETER=='ALGAE') |>
+    select(SITE, TRANSECT, VALUE),
+  boulder = nrsaChannel |> 
+    subset(PARAMETER=='BOULDR') |> 
+    select(SITE, TRANSECT, VALUE),
+  brush = nrsaChannel |> 
+    subset(PARAMETER=='BRUSH') |> 
+    select(SITE, TRANSECT, VALUE),
+  liveTree = nrsaChannel |> 
+    subset(PARAMETER=='LVTREE') |> 
+    select(SITE, TRANSECT, VALUE),
+  macrophytes = nrsaChannel |> 
+    subset(PARAMETER=='MACPHY') |> 
+    select(SITE, TRANSECT, VALUE),
+  overhang = nrsaChannel |> 
+    subset(PARAMETER=='OVRHNG') |> 
+    select(SITE, TRANSECT, VALUE),
+  structures = nrsaChannel |> 
+    subset(PARAMETER=='STRUCT') |> 
+    select(SITE, TRANSECT, VALUE),
+  undercut = nrsaChannel |> 
+    subset(PARAMETER == 'UNDCUT') |> 
+    select(SITE, TRANSECT, VALUE),
+  woodyDebris = nrsaChannel |> 
+    subset(PARAMETER=='WOODY') |> 
+    select(SITE, TRANSECT, VALUE)
+  )
+
+unique(fishCovMets$METRIC)
+```
+
+### NRSA General 
+
+There is a set of general site metrics that are calculated as part of NRSA physical habitat: reach length, mean transect spacing, number of side channel transects in reach, and % of reach with side channels. Those are calculated using the function `nrsaGeneral()`. A large part of the preparation for this function involves creating data frames of the transect spacing, which differs between boatable and wadeable sites. 
+
+```{r}
+bLatLon <- nrsaChanrip |>
+  filter(PARAMETER %in% c('LATDD_TOP', 'LONDD_TOP')) |>
+  mutate(BANK = ifelse(BANK=='BANK', 'BANK', 'MID'),
+         PARAMETER = ifelse(PARAMETER=='LATDD_TOP', 'LAT', 'LON')) |>
+  pivot_wider(id_cols = c('SITE', 'TRANSECT', 'PARAMETER'), names_from='BANK', values_from='VALUE') |>
+  mutate(VALUE = ifelse(is.na(MID), as.numeric(BANK), as.numeric(MID)),
+         VARIABLE = paste(TRANSECT, PARAMETER)) %>%
+  pivot_wider(id_cols = c('SITE', 'TRANSECT'), names_from='PARAMETER', values_from='VALUE')
 ```
 
