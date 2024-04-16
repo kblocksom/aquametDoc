@@ -859,7 +859,112 @@ unique(fishCovMets$METRIC)
 
 There is a set of general site metrics that are calculated as part of NRSA physical habitat: reach length, mean transect spacing, number of side channel transects in reach, and % of reach with side channels. Those are calculated using the function `nrsaGeneral()`. A large part of the preparation for this function involves creating data frames of the transect spacing, which differs between boatable and wadeable sites. 
 
-```{r}
+In straightforward cases, we can just use the ACTRANSP variable from channel data (e.g., `nrsaChannel`) boatable sites to calculate transect spacing. However, there is another approach using the latitude and longitude measured at the top of each subreach (e.g., transect A to B, B to C, etc.). This may be a more accurate measure of transect spacing in larger boatable systems. For the purposes of providing a tool to use with coordinates, we will follow this approach. First, we must add a function (`greatCircleDistance()`) that calculates the distance between transects using latitude and longitude.
+
+```{r nrsa-grcirclfx}
+greatCircleDistance <- function(lat1, lon1, lat2, lon2)
+# Performs 'great circle' distance calculation between two lat/lon points using
+# the Vincenty method and WGS-84 geodesic approximations.
+#
+# Returns distance in meters (NA if no convergence), or a character string
+# describing the error if one occurs.
+#
+# Initially from code by Mario Pineda-Koch described at
+# http://www.r-bloggers.com/great-circle-distance-calculations-in-r/  and
+# http://pineda-krch.com/2010/11/23/great-circle-distance-calculations-in-r/
+#
+# modified as follows:
+#   a) If the while loop is not entered, it is assumed that the distance between
+#      the lat/lon pairs is zero, so 0 is returned
+#   b) A clause was added (iterLimit==100) was added to insure that the while
+#      loop is entered.  This obviates need for change (a).
+#
+# ARGUMENTS:
+# lat1      latitude in decimal degrees for one point, North is positive
+# lon1      longitude in decimal degrees for one point, East is positive
+# lat2      latitude in decimal degrees for other point, North is positive
+# lon2      longitude in decimal degrees for other point, East is positive
+#
+{
+  # WGS-84 ellipsoid parameters
+  a <- 6378137         # length of major axis of the ellipsoid (radius at equator)
+  b <- 6356752.314245  # length of minor axis of the ellipsoid (radius at the poles)
+  f <- 1/298.257223563 # flattening of the ellipsoid
+
+  # Convert angles in degrees to radians, as expected by the trig functions
+  lat1 <- lat1*2*pi/360
+  lon1 <- lon1*2*pi/360
+  lat2 <- lat2*2*pi/360
+  lon2 <- lon2*2*pi/360
+
+  # Pre-calculate frequently used values
+  L <- lon2-lon1                 # difference in longitude
+  U1 <- atan((1-f) * tan(lat1))  # reduced latitude
+  U2 <- atan((1-f) * tan(lat2))  # reduced latitude
+  sinU1 <- sin(U1)
+  cosU1 <- cos(U1)
+  sinU2 <- sin(U2)
+  cosU2 <- cos(U2)
+
+  # Initialize values and attempt convergence.
+  cosSqAlpha <- NULL
+  sinSigma <- NULL
+  cosSigma <- NULL
+  cos2SigmaM <- NULL
+  sigma <- NULL
+  lambda <- L
+  lambdaP <- 0
+  iterLimit <- 100
+
+  while (iterLimit==100 | (abs(lambda-lambdaP) > 1e-12 & iterLimit>0) ) {
+      sinLambda <- sin(lambda)
+      cosLambda <- cos(lambda)
+      sinSigma <- sqrt( (cosU2 * sinLambda) * (cosU2 * sinLambda) +
+                        (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda) *
+                        (cosU1 * sinU2 - sinU1 * cosU2 * cosLambda)
+                      )
+
+      if (sinSigma==0) return(0)  # Co-incident points
+      
+      cosSigma <- sinU1 * sinU2 + cosU1 * cosU2 * cosLambda
+      sigma <- atan2(sinSigma, cosSigma)
+      sinAlpha <- cosU1 * cosU2 * sinLambda / sinSigma
+      cosSqAlpha <- 1 - sinAlpha * sinAlpha
+      cos2SigmaM <- cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha
+      if (is.na(cos2SigmaM)) cos2SigmaM <- 0  # Equatorial line: cosSqAlpha=0
+      
+      C <- f/16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha))
+
+      lambdaP <- lambda
+      lambda <- L + (1 - C) * f * sinAlpha *
+                (sigma + C * sinSigma *
+                 (cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM))
+                )
+      iterLimit <- iterLimit - 1
+  }
+
+  if (iterLimit==0) return(NA)  # formula failed to converge
+  if (iterLimit==100) return(0)  # formula began with nearly or exactly coincident points
+
+  uSq <- cosSqAlpha * (a * a - b * b) / (b * b)
+  A <- 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)))
+  B <- uSq/1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)))
+  deltaSigma <- B * sinSigma *
+                 (cos2SigmaM +
+                  B / 4 * (cosSigma * (-1 + 2 * cos2SigmaM^2) -
+                           B / 6 * cos2SigmaM *
+                           (-3 + 4 * sinSigma^2) *
+                           (-3 + 4 * cos2SigmaM^2)
+                          )
+                 )
+  s <- b * A * (sigma - deltaSigma)
+  return(s) # Distance in km
+}
+```
+
+Once we have that function, we can start to prepare the data we need to determine transect spacing. For boatable sites, we start with the `nrsaChanrip` dataset and extract the LATDD_TOP and LONDD_TOP parameters, which are the coordinates at each transect. The coordinates were measured at the bank and mid-stream, and the mid-stream ones are preferred, but bank coordinates are used if those are not available for a given transect for some reason.
+
+```{r nrsaGeneral}
 bLatLon <- nrsaChanrip |>
   filter(PARAMETER %in% c('LATDD_TOP', 'LONDD_TOP')) |>
   mutate(BANK = ifelse(BANK=='BANK', 'BANK', 'MID'),
