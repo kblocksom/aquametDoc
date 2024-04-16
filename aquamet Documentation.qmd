@@ -859,7 +859,7 @@ unique(fishCovMets$METRIC)
 
 There is a set of general site metrics that are calculated as part of NRSA physical habitat: reach length, mean transect spacing, number of side channel transects in reach, and % of reach with side channels. Those are calculated using the function `nrsaGeneral()`. A large part of the preparation for this function involves creating data frames of the transect spacing, which differs between boatable and wadeable sites. 
 
-In straightforward cases, we can just use the ACTRANSP variable from channel data (e.g., `nrsaChannel`) boatable sites to calculate transect spacing. However, there is another approach using the latitude and longitude measured at the top of each subreach (e.g., transect A to B, B to C, etc.). This may be a more accurate measure of transect spacing in larger boatable systems. For the purposes of providing a tool to use with coordinates, we will follow this approach. First, we must add a function (`greatCircleDistance()`) that calculates the distance between transects using latitude and longitude.
+In straightforward cases, we can just use the ACTRANSP variable from channel data (e.g., `nrsaChannel`) boatable sites to calculate transect spacing. However, there is another approach using the latitude and longitude measured at the top of each subreach (e.g., transect A to B, B to C, etc.). This may be a more accurate measure of transect spacing in larger boatable systems. For the purposes of providing a tool to use with coordinates, we will follow this approach. First, we must add a function (`greatCircleDistance()`) that calculates the distance between transects using latitude and longitude. We also add a second function (`protectedGreatCircleDistance`) that examines data while calculating values to avoid errors with the `greatCircleDistance()` function. 
 
 ```{r nrsa-grcirclfx}
 greatCircleDistance <- function(lat1, lon1, lat2, lon2)
@@ -960,18 +960,77 @@ greatCircleDistance <- function(lat1, lon1, lat2, lon2)
   s <- b * A * (sigma - deltaSigma)
   return(s) # Distance in km
 }
+
+# Create additional function that incorporates the greatCircleDistance function.
+protectedGreatCircleDistance <- function(lat1, lon1, lat2, lon2) {
+        if(any(is.na(c(lat1, lon1, lat2, lon2)))) { 
+            rc <- NA
+        } else {
+            rc <- greatCircleDistance(lat1, lon1, lat2, lon2)
+        }
+        return(rc)
+    }
 ```
 
 Once we have that function, we can start to prepare the data we need to determine transect spacing. For boatable sites, we start with the `nrsaChanrip` dataset and extract the LATDD_TOP and LONDD_TOP parameters, which are the coordinates at each transect. The coordinates were measured at the bank and mid-stream, and the mid-stream ones are preferred, but bank coordinates are used if those are not available for a given transect for some reason.
 
-```{r nrsaGeneral}
+We need to then create a column for each transect that will eventually be filled with the distance from that transect to the next for the actual transect spacing. The `greatCircleDistance` will calculate the distance between transects based on latitude/longitude, but in case there are errors in coordinates, there is a second set of calculations to fill in the median where the distance appears to be an error. 
+
+```{r nrsaGeneral-boatable-spacing}
 bLatLon <- nrsaChanrip |>
   filter(PARAMETER %in% c('LATDD_TOP', 'LONDD_TOP')) |>
   mutate(BANK = ifelse(BANK=='BANK', 'BANK', 'MID'),
-         PARAMETER = ifelse(PARAMETER=='LATDD_TOP', 'LAT', 'LON')) |>
-  pivot_wider(id_cols = c('SITE', 'TRANSECT', 'PARAMETER'), names_from='BANK', values_from='VALUE') |>
-  mutate(VALUE = ifelse(is.na(MID), as.numeric(BANK), as.numeric(MID)),
-         VARIABLE = paste(TRANSECT, PARAMETER)) %>%
-  pivot_wider(id_cols = c('SITE', 'TRANSECT'), names_from='PARAMETER', values_from='VALUE')
+         PARAMETER = ifelse(PARAMETER=='LATDD_TOP', 'LAT', 'LON'),
+         BANKPARAM = paste(BANK, PARAMETER, sep='_')) |>
+  pivot_wider(id_cols = c('SITE', 'TRANSECT'), names_from=BANKPARAM, values_from='VALUE') |>
+  mutate(LAT = ifelse(is.na(MID_LAT)|is.na(MID_LON), as.numeric(BANK_LAT), as.numeric(MID_LAT)),
+         LON = ifelse(is.na(MID_LON)|is.na(MID_LON), as.numeric(BANK_LON), as.numeric(MID_LON)))|>
+  select(-BANK_LAT, -BANK_LON, -MID_LAT, -MID_LON) |>
+  pivot_wider(id_cols = 'SITE', names_from='TRANSECT', values_from=c('LAT', 'LON')) |>
+  within(A<-B<-C<-D<-E<-F<-G<-H<-I<-J<-as.numeric(NA)) |> # Creates empty columns with each transect name, in order
+  ddply(c('SITE'), summarise, 
+         A = protectedGreatCircleDistance(LAT_A, LON_A, LAT_B, LON_B),
+         B = protectedGreatCircleDistance(LAT_B, LON_B, LAT_C, LON_C),
+         C = protectedGreatCircleDistance(LAT_C, LON_C, LAT_D, LON_D),
+         D = protectedGreatCircleDistance(LAT_D, LON_D, LAT_E, LON_E),
+         E = protectedGreatCircleDistance(LAT_E, LON_E, LAT_F, LON_F),
+         F = protectedGreatCircleDistance(LAT_F, LON_F, LAT_G, LON_G),
+         G = protectedGreatCircleDistance(LAT_G, LON_G, LAT_H, LON_H),
+         H = protectedGreatCircleDistance(LAT_H, LON_H, LAT_I, LON_I),
+         I = protectedGreatCircleDistance(LAT_I, LON_I, LAT_J, LON_J),
+         J = protectedGreatCircleDistance(LAT_J, LON_J, LAT_K, LON_K))
+
+bLatLon_long <- bLatLon |>
+  pivot_longer(cols = A:J, names_to = 'TRANSECT', values_to='DISTANCE') %>%
+  ddply('SITE', mutate, medianDistance = median(DISTANCE, na.rm=T)) %>%
+  mutate(correctedDistance = ifelse(abs((DISTANCE-medianDistance)/medianDistance) >0.5, 
+                                    medianDistance, DISTANCE))
+
+
+```
+
+We now have transect spacing for boatable sites but need it for wadeable sites, too. Thankfully, that process is a little more straightforward. Instead of using coordinates, we can just use thalweg data (`nrsaThalweg`). Since all wadeable sites have INCREMENT filled in, we can use that for transect spacing and do not need to worry about filling in any alternatives. If any wadeable sites did not have the INCREMENT parameter, we would need to find an alternative value, which could be based on the reach length recorded on the thalweg form or the verification form and divided by the number of subreaches sampled. The increment indicates the intended spacing of stations within a subreach between transects.
+
+We do have to figure out how many stations were sampled, specifically at the last transect, so that we can adjust the total number of stations. 
+
+```{r nrsaGeneral-wadeable-spacing}
+# Pull increment, which is only measured at wadeable sites
+wThalwegIncrements <- nrsaThalweg |>
+  filter(PARAMETER=='INCREMENT') |>
+  mutate(VALUE = as.numeric(VALUE)) |>
+  select(SITE, VALUE)
+
+# We still need to create a data frame of the stations sampled and transect distance
+# We can get the transects sampled using the thalweg data
+wNumStations <- nrsaThalweg |>
+  filter(STATION!='ALL') |>
+  mutate(STATION = as.integer(STATION)) |>
+  
+  
+  
+  filter(VALUE!='' & !is.na(VALUE) & TRANSECT %in% LETTERS[1:11]) |>
+  ddply('SITE', summarise, lastTransect = max(TRANSECT)) |>
+  merge()
+
 ```
 
