@@ -531,7 +531,7 @@ As we go through this example, we will explain for each metric calculation funct
 ## Example datasets
 
 | Dataset       | Description                                                                                                                                                                                                 |
-|-------------------|-----------------------------------------------------|
+|--------------------|----------------------------------------------------|
 | nrsaChanconst | Channel constraint characteristics for entire site.                                                                                                                                                         |
 | nrsaChannel   | Channel characteristics for both boatable and wadeable streams by TRANSECT, including data on bank characteristics, fish cover, large woody debris, littoral substrates, and boatable constraint variables. |
 | nrsaChanrip   | Channel riparian data by TRANSECT and BANK. Includes canopy cover densiometer readings, human influence, visual riparian measurements, and wadeable bank undercut and angle measurements.                   |
@@ -587,7 +587,7 @@ unique(nrsaChanxsec[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
 
 ### nrsaInvleg
 
-We will show calculations using these data, but note that these measurements are no longer collected, though related but simplified measurements are still collected on the Site Assessment form. 
+We will show calculations using these data, but note that these measurements are no longer collected, though related but simplified measurements are still collected on the Site Assessment form.
 
 ```{r nrsa-invleg}
 head(nrsaInvleg)
@@ -599,7 +599,7 @@ unique(nrsaInvleg$PARAMETER)
 
 ### nrsaLittoral
 
-These are littoral depth measurements only collected in boatable sites along the shoreline. 
+These are littoral depth measurements only collected in boatable sites along the shoreline.
 
 ```{r nrsa-littoral}
 head(nrsaLittoral)
@@ -621,7 +621,7 @@ unique(nrsaSlope$PARAMETER)
 
 ### nrsaThalweg
 
-Thalweg depth measurements for both boatable and wadeable sites, with different measurements in each type of site. 
+Thalweg depth measurements for both boatable and wadeable sites, with different measurements in each type of site.
 
 ```{r nrsa-thalweg}
 head(nrsaThalweg)
@@ -630,6 +630,7 @@ str(nrsaThalweg)
 unique(nrsaThalweg[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
   arrange(SAMPLE_TYPE, PARAMETER)
 ```
+
 ### nrsaVisits
 
 This is just a simple data frame to identify sites as wadeable or boatable.
@@ -638,11 +639,11 @@ This is just a simple data frame to identify sites as wadeable or boatable.
 nrsaVisits
 ```
 
-## Calculating metrics 
+## Calculating metrics
 
 ### NRSA bank morphology metrics
 
-These are calculated using the `nrsaBankMorphology()` function, and data are provided separately for boatable and wadeable sites. 
+These are calculated using the `nrsaBankMorphology()` function, and data are provided separately for boatable and wadeable sites.
 
 ```{r nrsaBankMorph}
 chanrip <- filter(nrsaChanrip, PARAMETER %in% c('ANGLE','UNDERCUT')) 
@@ -729,7 +730,7 @@ chanCharMets <- nrsaChannelChar(
 unique(chanCharMets$METRIC)
 ```
 
-### NRSA Channel Habitat 
+### NRSA channel habitat metrics
 
 To calculate channel habitat metrics, which are based on thalweg depth measurements, use the function `nrsaChannelHabitat()`. We need to separate the boatable and wadeable data for these calculations.
 
@@ -748,7 +749,7 @@ chanHabMets <- nrsaChannelHabitat(
 unique(chanHabMets$METRIC)
 ```
 
-### NRSA Channel Morphology
+### NRSA channel morphology metrics
 
 To calculate channel morphology metrics, we use the function `nrsaChannelMorphology()`. The wadeable and boatable data are separate inputs to the function.
 
@@ -817,7 +818,7 @@ chanMorphMets <- nrsaChannelMorphology(
 unique(chanMorphMets$METRIC)
 ```
 
-### NRSA Fish Cover
+### NRSA fish cover metrics
 
 Unsurprisingly at this point, fish cover metrics are calculated using the function `nrsaFishCover()`. The data for these metrics are located in the example dataset `nrsaChannel`.
 
@@ -855,13 +856,13 @@ fishCovMets <- nrsaFishCover(
 unique(fishCovMets$METRIC)
 ```
 
-### NRSA General 
+### NRSA general site metrics
 
-There is a set of general site metrics that are calculated as part of NRSA physical habitat: reach length, mean transect spacing, number of side channel transects in reach, and % of reach with side channels. Those are calculated using the function `nrsaGeneral()`. A large part of the preparation for this function involves creating data frames of the transect spacing, which differs between boatable and wadeable sites. 
+There is a set of general site metrics that are calculated as part of NRSA physical habitat: reach length, mean transect spacing, number of side channel transects in reach, and % of reach with side channels. Those are calculated using the function `nrsaGeneral()`. A large part of the preparation for this function involves creating data frames of the transect spacing, which differs between boatable and wadeable sites.
 
 #### Boatable transect spacing
 
-In straightforward cases, we can just use the ACTRANSP variable from channel data (e.g., `nrsaChannel`) boatable sites to calculate transect spacing. However, there is another approach using the latitude and longitude measured at the top of each subreach (e.g., transect A to B, B to C, etc.). This may be a more accurate measure of transect spacing in larger boatable systems. For the purposes of providing a tool to use with coordinates, we will follow this approach. First, we must add a function (`greatCircleDistance()`) that calculates the distance between transects using latitude and longitude. We also add a second function (`protectedGreatCircleDistance`) that examines data while calculating values to avoid errors with the `greatCircleDistance()` function. 
+In straightforward cases, we can just use the ACTRANSP variable from channel data (e.g., `nrsaChannel`) boatable sites to calculate transect spacing. However, there is another approach using the latitude and longitude measured at the top of each subreach (e.g., transect A to B, B to C, etc.). This may be a more accurate measure of transect spacing in larger boatable systems. For the purposes of providing a tool to use with coordinates, we will follow this approach. First, we must add a function (`greatCircleDistance()`) that calculates the distance between transects using latitude and longitude. We also add a second function (`protectedGreatCircleDistance`) that examines data while calculating values to avoid errors with the `greatCircleDistance()` function.
 
 ```{r nrsa-grcirclfx}
 greatCircleDistance <- function(lat1, lon1, lat2, lon2)
@@ -976,7 +977,7 @@ protectedGreatCircleDistance <- function(lat1, lon1, lat2, lon2) {
 
 Once we have that function, we can start to prepare the data we need to determine transect spacing. For boatable sites, we start with the `nrsaChanrip` dataset and extract the LATDD_TOP and LONDD_TOP parameters, which are the coordinates at each transect. The coordinates were measured at the bank and mid-stream, and the mid-stream ones are preferred, but bank coordinates are used if those are not available for a given transect for some reason.
 
-We need to then create a column for each transect that will eventually be filled with the distance from that transect to the next for the actual transect spacing. The `greatCircleDistance` will calculate the distance between transects based on latitude/longitude, but in case there are errors in coordinates, there is a second set of calculations to fill in the median where the distance appears to be an error. 
+We need to then create a column for each transect that will eventually be filled with the distance from that transect to the next for the actual transect spacing. The `greatCircleDistance` will calculate the distance between transects based on latitude/longitude, but in case there are errors in coordinates, there is a second set of calculations to fill in the median where the distance appears to be an error.
 
 ```{r nrsaGeneral-boatable-spacing}
 bLatLon <- nrsaChanrip |>
@@ -1040,15 +1041,15 @@ wNumStationsPerTransect <- filter(nrsaThalweg, VALUE!='' & !is.na(VALUE) & TRANS
   select(-lastTransect)
 
 wTransectSpacing <- merge(wThalwegIncrements, wNumStationsPerTransect, by = 'SITE') |>
-  mutate(VALUE = VALUE * nSta) %>%
-  select(SITE, TRANSECT, VALUE) %>%
+  mutate(VALUE = VALUE * nSta) |>
+  select(SITE, TRANSECT, VALUE) |>
   arrange(SITE, TRANSECT)
 
 ```
 
 #### Calculating general metrics
 
-We are finally ready to use the `nrsaGeneral()` function to calculate metrics. There are a couple of additional inputs which are subsets of the `nrsaThalweg` data. Specifically, we need the set of sampled transects and we need any data from side channels. 
+We are finally ready to use the `nrsaGeneral()` function to calculate metrics. There are a couple of additional inputs which are subsets of the `nrsaThalweg` data. Specifically, we need the set of sampled transects and we need any data from side channels.
 
 ```{r nrsaGeneral-metrics}
 sampTrans <- nrsaThalweg |>
@@ -1056,7 +1057,7 @@ sampTrans <- nrsaThalweg |>
   unique()
 
 sideChan <- nrsaThalweg |>
-  filter(PARAMETER %in% c('SIDCHN', 'OFF_CHAN')) %>%
+  filter(PARAMETER %in% c('SIDCHN', 'OFF_CHAN')) |>
   select(SITE, VALUE)
   
 transSpacing <- bind_rows(bTransectSpacing, wTransectSpacing)
@@ -1066,5 +1067,82 @@ generalMets <- nrsaGeneral(sampledTransects = sampTrans,
                            transectSpacing = transSpacing)
 
 unique(generalMets$METRIC)
+```
+
+### NRSA human influence metrics
+
+There are a number of metrics based on human influence data collected on the **PHAB CHANNEL/RIPARIAN TRANSECT** form for boatable sites and the **PHAB CHANNEL/RIPARIAN CROSS-SECTION** form for wadeable sites. These data are included in the `nrsaChanrip` dataset. The parameters have the SAMPLE_TYPE value of HUMINFLUW or HUMINFLUB, for wadeable and boatable sites, respectively.
+
+For this function, we simply provide inputs for each type of human influence as a data frame with SITE and VALUE. We can wrap all of this subsetting into the function call, so the inputs are not created a separate datasets. We also need to be sure we only have the following variables in the data frame: SITE, TRANSECT, VALUE
+
+```{r nrsaHumanInfluence}
+nrsaHumInflMets <- nrsaHumanInfluence(
+  buildings = filter(nrsaChanrip, PARAMETER == 'BUILD') |> 
+    select(SITE, TRANSECT, VALUE),
+  landfillTrash = filter(nrsaChanrip, PARAMETER == 'TRASH') |> 
+    select(SITE, TRANSECT, VALUE),
+  logging = filter(nrsaChanrip, PARAMETER == 'LOG') |> 
+    select(SITE, TRANSECT, VALUE),
+  mining = filter(nrsaChanrip, PARAMETER == 'MINE') |> 
+    select(SITE, TRANSECT, VALUE),
+  parkLawn = filter(nrsaChanrip, PARAMETER == 'PARK') |> 
+    select(SITE, TRANSECT, VALUE),
+  pastureRangeHay = filter(nrsaChanrip, PARAMETER == 'PAST') |> 
+    select(SITE, TRANSECT, VALUE),
+  pavementClearedlot = filter(nrsaChanrip, PARAMETER == 'PAVE') |> 
+    select(SITE, TRANSECT, VALUE),
+  pipesInOut = filter(nrsaChanrip, PARAMETER == 'PIPES') |> 
+    select(SITE, TRANSECT, VALUE),
+  roadsRailroads = filter(nrsaChanrip, PARAMETER == 'ROAD') |> 
+    select(SITE, TRANSECT, VALUE),
+  rowcrops = filter(nrsaChanrip, PARAMETER == 'ROW') |> 
+    select(SITE, TRANSECT, VALUE),
+  wallRevetment = filter(nrsaChanrip, PARAMETER == 'WALL') |> 
+    select(SITE, TRANSECT, VALUE))
+
+unique(nrsaHumInflMets$METRIC)
+```
+
+### NRSA large woody debris metrics
+
+The large woody debris metrics are calculated using the function `nrsaLargeWoody()` and based on data collected at each transect both in and out of the water. The data for this example are in the `nrsaChannel` dataset with the SAMPLE_TYPE values of LWDW and LWDB for wadeable and boatable sites, respectively. The inputs are separated into boatable and wadeable for the function. In addition, certain metrics already calculated are used as inputs. The `reachlen` metric from the `nrsaGeneral()` function (`generalMets` dataset) and the `xbkf_w` metric from the `nrsaChannelMorphology()` function (`chanMorphMets` dataset) are both used for the large woody debris metric calculations. For the purposes of this function, the `PARAMETER` should be renamed to `CLASS` for the `bCounts` and `wCounts` inputs.
+
+```{r nrsaLargeWoody}
+lwd <- filter(nrsaChannel, SAMPLE_TYPE %in% c('LWDB', 'LWDW')) |>
+  mutate(VALUE = as.integer(VALUE))
+
+largeWoodyDebrisMets <- nrsaLargeWoody(
+  bCounts = filter(lwd, SAMPLE_TYPE=='LWDB') |>
+    select(SITE, TRANSECT, CLASS = PARAMETER, VALUE),
+  wCounts = filter(lwd, SAMPLE_TYPE=='LWDW') |>
+    select(SITE, TRANSECT, CLASS = PARAMETER, VALUE),
+  reachlength = filter(generalMets, METRIC=='reachlen') |>
+    select(SITE, VALUE),
+  meanBankfullWidth = filter(chanMorphMets, METRIC=='xbkf_w') |>
+    select(SITE, VALUE)
+                    )
+
+head(largeWoodyDebrisMets)
+unique(largeWoodyDebrisMets$METRIC)
+```
+
+### NRSA littoral depth
+
+Littoral depth metrics only apply to boatable sites because those are the only sites where depth sampling along the shoreline is measured. The measurements are recorded on the **PHAB CHANNEL/RIPARIAN TRANSECT** form for boatable sites and the data for this example is in the dataset `nrsaLittoral`. All littoral measurements should be converted to meters before using in the function.
+
+```{r nrsaLittoralDepth}
+units <- nrsaLittoral |>
+  filter(PARAMETER=='DEPTH_UNITS') |>
+  select(SITE, TRANSECT, UNITS=VALUE)
+
+depths <- nrsaLittoral |>
+  filter(PARAMETER %in% c('SONAR', 'POLE')) |>
+  mutate(VALUE = as.numeric(VALUE)) |>
+  merge(units, by = c('SITE', 'TRANSECT')) %>%
+  select(SITE, VALUE)
+
+littoralDepthMets <- nrsaLittoralDepth(bLittoralDepth = depths)
+
+unique(littoralDepthMets$METRIC)
 ```
 
