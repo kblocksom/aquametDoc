@@ -859,6 +859,8 @@ unique(fishCovMets$METRIC)
 
 There is a set of general site metrics that are calculated as part of NRSA physical habitat: reach length, mean transect spacing, number of side channel transects in reach, and % of reach with side channels. Those are calculated using the function `nrsaGeneral()`. A large part of the preparation for this function involves creating data frames of the transect spacing, which differs between boatable and wadeable sites. 
 
+#### Boatable transect spacing
+
 In straightforward cases, we can just use the ACTRANSP variable from channel data (e.g., `nrsaChannel`) boatable sites to calculate transect spacing. However, there is another approach using the latitude and longitude measured at the top of each subreach (e.g., transect A to B, B to C, etc.). This may be a more accurate measure of transect spacing in larger boatable systems. For the purposes of providing a tool to use with coordinates, we will follow this approach. First, we must add a function (`greatCircleDistance()`) that calculates the distance between transects using latitude and longitude. We also add a second function (`protectedGreatCircleDistance`) that examines data while calculating values to avoid errors with the `greatCircleDistance()` function. 
 
 ```{r nrsa-grcirclfx}
@@ -1000,18 +1002,22 @@ bLatLon <- nrsaChanrip |>
          I = protectedGreatCircleDistance(LAT_I, LON_I, LAT_J, LON_J),
          J = protectedGreatCircleDistance(LAT_J, LON_J, LAT_K, LON_K))
 
-bLatLon_long <- bLatLon |>
+bTransectSpacing <- bLatLon |>
   pivot_longer(cols = A:J, names_to = 'TRANSECT', values_to='DISTANCE') %>%
   ddply('SITE', mutate, medianDistance = median(DISTANCE, na.rm=T)) %>%
   mutate(correctedDistance = ifelse(abs((DISTANCE-medianDistance)/medianDistance) >0.5, 
-                                    medianDistance, DISTANCE))
+                                    medianDistance, DISTANCE)) %>%
+  dplyr::rename(c(VALUE = correctedDistance)) %>%
+  select(SITE, TRANSECT, VALUE)
 
 
 ```
 
-We now have transect spacing for boatable sites but need it for wadeable sites, too. Thankfully, that process is a little more straightforward. Instead of using coordinates, we can just use thalweg data (`nrsaThalweg`). Since all wadeable sites have INCREMENT filled in, we can use that for transect spacing and do not need to worry about filling in any alternatives. If any wadeable sites did not have the INCREMENT parameter, we would need to find an alternative value, which could be based on the reach length recorded on the thalweg form or the verification form and divided by the number of subreaches sampled. The increment indicates the intended spacing of stations within a subreach between transects.
+#### Wadeable transect spacing
 
-We do have to figure out how many stations were sampled, specifically at the last transect, so that we can adjust the total number of stations. 
+We now have transect spacing for boatable sites but need it for wadeable sites, too. Instead of using coordinates, we can just use thalweg data (`nrsaThalweg`). Since all wadeable sites have INCREMENT filled in our dataset, we can use that for transect spacing and do not need to worry about filling in any alternatives. If any wadeable sites did not have the INCREMENT parameter, we would need to find an alternative value, which could be based on the reach length recorded on the thalweg form or the verification form and divided by the number of subreaches sampled. The increment indicates the intended spacing of stations within a subreach between transects.
+
+We do have to figure out how many stations were sampled, specifically at the last transect, so that we can adjust the total number of stations. There are a few steps for doing this provided below. Essentially, we count the number of stations sampled in a subreach (between transects). We need to use the internal `aquamet` function `nWadeableStationsPerTransect()`, which essentially determines the number of stations within each subreach using counts of stations with measurements.
 
 ```{r nrsaGeneral-wadeable-spacing}
 # Pull increment, which is only measured at wadeable sites
@@ -1025,12 +1031,40 @@ wThalwegIncrements <- nrsaThalweg |>
 wNumStations <- nrsaThalweg |>
   filter(STATION!='ALL') |>
   mutate(STATION = as.integer(STATION)) |>
+  aquamet::nWadeableStationsPerTransect()
   
-  
-  
-  filter(VALUE!='' & !is.na(VALUE) & TRANSECT %in% LETTERS[1:11]) |>
+wNumStationsPerTransect <- filter(nrsaThalweg, VALUE!='' & !is.na(VALUE) & TRANSECT %in% LETTERS[1:11]) |>
   ddply('SITE', summarise, lastTransect = max(TRANSECT)) |>
-  merge()
+  merge(wNumStations, by = 'SITE', all.y=T) |>
+  mutate(nSta = ifelse(TRANSECT==lastTransect, nSta-1, nSta)) |>
+  select(-lastTransect)
 
+wTransectSpacing <- merge(wThalwegIncrements, wNumStationsPerTransect, by = 'SITE') |>
+  mutate(VALUE = VALUE * nSta) %>%
+  select(SITE, TRANSECT, VALUE) %>%
+  arrange(SITE, TRANSECT)
+
+```
+
+#### Calculating general metrics
+
+We are finally ready to use the `nrsaGeneral()` function to calculate metrics. There are a couple of additional inputs which are subsets of the `nrsaThalweg` data. Specifically, we need the set of sampled transects and we need any data from side channels. 
+
+```{r nrsaGeneral-metrics}
+sampTrans <- nrsaThalweg |>
+  select(SITE, TRANSECT) |>
+  unique()
+
+sideChan <- nrsaThalweg |>
+  filter(PARAMETER %in% c('SIDCHN', 'OFF_CHAN')) %>%
+  select(SITE, VALUE)
+  
+transSpacing <- bind_rows(bTransectSpacing, wTransectSpacing)
+
+generalMets <- nrsaGeneral(sampledTransects = sampTrans, 
+                           sideChannels = sideChan,
+                           transectSpacing = transSpacing)
+
+unique(generalMets$METRIC)
 ```
 
