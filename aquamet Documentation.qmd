@@ -125,7 +125,7 @@ We will need to update values for the parameter ANGLE because NEAR_VERTICAL_UNDE
 
 ```{r calc-bank-mets}
 
-angle <- subset(nlaPhab, PARAMETER=='ANGLE', select = -PARAMETER) %>%
+angle <- subset(nlaPhab, PARAMETER=='ANGLE', select = -PARAMETER) |>
   plyr::mutate(VALUE = ifelse(VALUE=='NEAR_VERTICAL_UNDERCUT', 'NEAR_VERTICAL', VALUE))
 
 drawdown <- subset(nlaPhab, PARAMETER=='DRAWDOWN', select = -PARAMETER)
@@ -559,7 +559,7 @@ This data frame contains a large number of different types of data, so it is use
 head(nrsaChannel)
 str(nrsaChannel)
 
-unique(nrsaChannel[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
+unique(nrsaChannel[,c('SAMPLE_TYPE', 'PARAMETER')]) |>
   arrange(SAMPLE_TYPE, PARAMETER)
 ```
 
@@ -569,7 +569,7 @@ unique(nrsaChannel[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
 head(nrsaChanrip)
 str(nrsaChanrip)
 
-unique(nrsaChanrip[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
+unique(nrsaChanrip[,c('SAMPLE_TYPE', 'PARAMETER')]) |>
   arrange(SAMPLE_TYPE, PARAMETER)
 ```
 
@@ -581,7 +581,7 @@ This is for wadeable sites only.
 head(nrsaChanxsec)
 str(nrsaChanxsec)
 
-unique(nrsaChanxsec[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
+unique(nrsaChanxsec[,c('SAMPLE_TYPE', 'PARAMETER')]) |>
   arrange(SAMPLE_TYPE, PARAMETER)
 ```
 
@@ -627,7 +627,7 @@ Thalweg depth measurements for both boatable and wadeable sites, with different 
 head(nrsaThalweg)
 str(nrsaThalweg)
 
-unique(nrsaThalweg[,c('SAMPLE_TYPE', 'PARAMETER')]) %>%
+unique(nrsaThalweg[,c('SAMPLE_TYPE', 'PARAMETER')]) |>
   arrange(SAMPLE_TYPE, PARAMETER)
 ```
 
@@ -643,7 +643,7 @@ nrsaVisits
 
 ### NRSA bank morphology metrics
 
-These are calculated using the `nrsaBankMorphology()` function, and data are provided separately for boatable and wadeable sites.
+These are calculated using the `nrsaBankMorphology()` function, and data are provided separately for boatable and wadeable sites. To avoid creating lots of smaller datasets just to create inputs for the metric functions, we can do subsetting and select variables within the function call, using the pipeline function (`|>`) to carry out multiple steps. This approach is shown in the function call below and throughout. 
 
 ```{r nrsaBankMorph}
 chanrip <- filter(nrsaChanrip, PARAMETER %in% c('ANGLE','UNDERCUT')) 
@@ -658,6 +658,7 @@ bankMorphMets <- nrsaBankMorphology(bAngle = select(chan, SITE, VALUE),
                           select(SITE, VALUE)
                         )
 
+print("The bank morphology metrics from this function:")
 unique(bankMorphMets$METRIC)
 
 ```
@@ -681,7 +682,7 @@ canDensMets <- nrsaCanopyDensiometer(bDensiom = nrsaChanrip |>
                                      select(SITE, DIRECTION, VALUE)
                            )
 
-head(canDensMets)
+print("The canopy density metrics from this function:")
 unique(canDensMets$METRIC)
 ```
 
@@ -727,6 +728,7 @@ chanCharMets <- nrsaChannelChar(
                        mutate(VALUE=as.numeric(VALUE))
                      )
 
+print("The channel characteristics metrics from this function:")
 unique(chanCharMets$METRIC)
 ```
 
@@ -746,6 +748,7 @@ chanHabMets <- nrsaChannelHabitat(
     mutate(VALUE=ifelse(VALUE=='PO', 'P', trimws(VALUE))) |>
     select(SITE, VALUE))
 
+print("The channel habitat metrics from this function:")
 unique(chanHabMets$METRIC)
 ```
 
@@ -764,13 +767,14 @@ channel <- nrsaChannel |>
 
 wthalDepth <- nrsaThalweg |> 
               subset(PARAMETER %in% c('DEPTH')) |> 
-              select(-PARAMETER) %>% mutate(UNITS='CM') |>
+              select(-PARAMETER) |> 
+              mutate(UNITS='CM') |>
               subset(VALUE %nin% c(NA,''))
 bthalDepth <- merge(subset(thalweg, PARAMETER %in% c('POLE','SONAR')) |> 
-                      select(-PARAMETER),
-                   subset(thalweg, PARAMETER %in% c('DEPTH_UNITS')) |> 
-                     dplyr::rename(UNITS=VALUE) |>
-                     select(-PARAMETER, -STATION), 
+                  select(-PARAMETER),
+                  subset(thalweg, PARAMETER %in% c('DEPTH_UNITS')) |> 
+                  dplyr::rename(UNITS=VALUE) |>
+                  select(-PARAMETER, -STATION), 
                    by=c('SITE','SAMPLE_TYPE','TRANSECT'),
                    all.x=TRUE
                    ) |>
@@ -815,6 +819,7 @@ chanMorphMets <- nrsaChannelMorphology(
     select(SITE, TRANSECT, STATION, VALUE, UNITS)
   )
 
+print("The channel morphology metrics from this function:")
 unique(chanMorphMets$METRIC)
 ```
 
@@ -853,6 +858,7 @@ fishCovMets <- nrsaFishCover(
     select(SITE, TRANSECT, VALUE)
   )
 
+print("The fish cover metrics from this function:")
 unique(fishCovMets$METRIC)
 ```
 
@@ -1004,11 +1010,11 @@ bLatLon <- nrsaChanrip |>
          J = protectedGreatCircleDistance(LAT_J, LON_J, LAT_K, LON_K))
 
 bTransectSpacing <- bLatLon |>
-  pivot_longer(cols = A:J, names_to = 'TRANSECT', values_to='DISTANCE') %>%
-  ddply('SITE', mutate, medianDistance = median(DISTANCE, na.rm=T)) %>%
+  pivot_longer(cols = A:J, names_to = 'TRANSECT', values_to='DISTANCE') |>
+  ddply('SITE', mutate, medianDistance = median(DISTANCE, na.rm=T)) |>
   mutate(correctedDistance = ifelse(abs((DISTANCE-medianDistance)/medianDistance) >0.5, 
-                                    medianDistance, DISTANCE)) %>%
-  dplyr::rename(c(VALUE = correctedDistance)) %>%
+                                    medianDistance, DISTANCE)) |>
+  dplyr::rename(c(VALUE = correctedDistance)) |>
   select(SITE, TRANSECT, VALUE)
 
 
@@ -1066,6 +1072,7 @@ generalMets <- nrsaGeneral(sampledTransects = sampTrans,
                            sideChannels = sideChan,
                            transectSpacing = transSpacing)
 
+print("The general site metrics from this function:")
 unique(generalMets$METRIC)
 ```
 
@@ -1100,6 +1107,7 @@ nrsaHumInflMets <- nrsaHumanInfluence(
   wallRevetment = filter(nrsaChanrip, PARAMETER == 'WALL') |> 
     select(SITE, TRANSECT, VALUE))
 
+print("The human influence metrics from this function:")
 unique(nrsaHumInflMets$METRIC)
 ```
 
@@ -1122,11 +1130,11 @@ largeWoodyDebrisMets <- nrsaLargeWoody(
     select(SITE, VALUE)
                     )
 
-head(largeWoodyDebrisMets)
+print("The large woody debris metrics from this function:")
 unique(largeWoodyDebrisMets$METRIC)
 ```
 
-### NRSA littoral depth
+### NRSA littoral depth metrics
 
 Littoral depth metrics only apply to boatable sites because those are the only sites where depth sampling along the shoreline is measured. The measurements are recorded on the **PHAB CHANNEL/RIPARIAN TRANSECT** form for boatable sites and the data for this example is in the dataset `nrsaLittoral`. All littoral measurements should be converted to meters before using in the function.
 
@@ -1138,11 +1146,56 @@ units <- nrsaLittoral |>
 depths <- nrsaLittoral |>
   filter(PARAMETER %in% c('SONAR', 'POLE')) |>
   mutate(VALUE = as.numeric(VALUE)) |>
-  merge(units, by = c('SITE', 'TRANSECT')) %>%
+  merge(units, by = c('SITE', 'TRANSECT')) |>
   select(SITE, VALUE)
 
 littoralDepthMets <- nrsaLittoralDepth(bLittoralDepth = depths)
 
+print("The littoral depth metrics from this function:")
 unique(littoralDepthMets$METRIC)
+```
+
+### NRSA riparian vegetation metrics
+
+Riparian vegetation data are collected at each transect, and the data for this example are contained in the `nrsaChanrip` dataset. The function `nrsaRiparianVegetation()` is used to calculate these metrics, and the inputs are fairly straightforward, just the data for individual parameters.  
+
+```{r nrsaRiparianVegetation}
+nrsaRiparianVegMetrics <- nrsaRiparianVegetation(
+  canopyCoverLargeDiameter = filter(nrsaChanrip, PARAMETER=='CANBTRE') |>
+    select(SITE, TRANSECT, BANK, VALUE),
+  canopyCoverSmallDiameter = filter(nrsaChanrip, PARAMETER=='CANSTRE') |>
+    select(SITE, TRANSECT, BANK, VALUE),
+  canopyVegetationType = filter(nrsaChanrip, PARAMETER=='CANVEG') |>
+    select(SITE, TRANSECT, BANK, VALUE),
+  groundCoverBare = filter(nrsaChanrip, PARAMETER=='BARE') |>
+    select(SITE, TRANSECT, BANK, VALUE),
+  groundCoverNonwoody = filter(nrsaChanrip, PARAMETER=='GCNWDY') |>
+    select(SITE, TRANSECT, BANK, VALUE),
+  groundCoverWoody = filter(nrsaChanrip, PARAMETER=='GCWDY') |>
+    select(SITE, TRANSECT, BANK, VALUE),
+  understoryCoverNonwoody = filter(nrsaChanrip, PARAMETER=='UNDNWDY') |>
+    select(SITE, TRANSECT, BANK, VALUE),
+  understoryCoverWoody = filter(nrsaChanrip, PARAMETER=='UNDWDY') |>
+    select(SITE, TRANSECT, BANK, VALUE),
+  understoryVegetationType = filter(nrsaChanrip, PARAMETER=='UNDERVEG') |>
+    select(SITE, TRANSECT, BANK, VALUE)
+)
+
+print("The riparian vegetation metrics from this function:")
+unique(nrsaRiparianVegMetrics$METRIC)
+```
+
+### NRSA slope and bearing metrics
+
+Slope and bearing measurements are recorded in the field only for wadeable sites, and slopes for boatable sites are usually generated using GIS. In this example dataset from data collected in the 2008-9 NRSA survey, we have slope and bearing measurements for all sites. The inputs for the function `nrsaSlopeBearing()` are separated into boatable and wadeable, and if sinuosity and slope were determined through GIS for any sites, those are added through a separate set of arguments. 
+
+For demonstration purposes, we will go through an example for boatable sites using field-collected data, even though we no longer collect data that way. We will create the inputs for boatable sites separately because those data are more complex than for wadeable sites. 
+
+```{r nrsaSlopeBearing}
+boatBearing <- filter(nrsaSlope, SAMPLE_TYPE=='BANKB')
+
+slopeBearingMets <- nrsaSlopeBearing(
+  bBearing = filter(nrsaSlope, PARAMETER==')
+)
 ```
 
