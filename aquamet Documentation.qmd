@@ -1310,6 +1310,49 @@ print("The substrate embeddedness metrics from this function:")
 unique(nrsaSubstrEmbedMetrics$METRIC)
 ```
 
+### NRSA residual pools
+
+We will use the function `nrsaResidualPools()` function to calculate metrics related to residual pools for NRSA. The required data for this function are in the `nrsaThalweg` datasets, as well as some metrics from the metrics file `slopeBearingMetrics` dataset created above.
+
+```{r nrsaResidualPools} 
+# START HERE !!!
+residualPoolMetrics <- nrsaResidualPools(
+  bDepth = merge(thalweg |> 
+     filter(PARAMETER %in% c('POLE','SONAR') & TRANSECT %in% LETTERS) |>
+     pivot_wider(id_cols = c(SITE, TRANSECT, STATION), 
+                 names_from='PARAMETER', 
+                 values_from='VALUE') |>
+     mutate(VALUE = as.numeric(ifelse(POLE %in% c('',NA), SONAR, POLE)),
+            STATION=as.numeric(STATION)),
+            bind_rows(thalweg |>
+                        filter(PARAMETER== 'DEPTH_UNITS' & VALUE %nin% c('',NA)) |>
+                        dplyr::rename(DEPTH_UNITS=VALUE) |>
+                        select(SITE, TRANSECT, DEPTH_UNITS))) |>
+                        dplyr::rename(UNITS=DEPTH_UNITS)
+                                      ,by=c('SITE','TRANSECT'), all.x=TRUE
+                                      ) |>
+                                 mutate(STATION = as.integer(STATION)) |>
+                                 select(SITE, TRANSECT, STATION, VALUE, UNITS) 
+                       ,wDepth=thalweg |>
+                               filter(PARAMETER == 'DEPTH') |>
+                               mutate(VALUE = as.numeric(VALUE)
+                                     ,STATION=as.numeric(STATION)
+                                     ) |>
+                                 mutate(STATION = as.integer(STATION)) |>
+                               select(SITE, TRANSECT, STATION, VALUE) 
+                       ,siteSlopes = sb |> 
+                                     filter(METRIC=='xslope') |>
+                                     mutate(VALUE=as.numeric(VALUE)) |>
+                                     select(SITE, VALUE) 
+                       ,transectSpacing = rbind(boatableTransectSpacing |>                               # Copied from transectSpacing arg to nrsaGeneral()
+                                                select(SITE,TRANSECT,VALUE)                               
+                                               ,
+                                               wadeableTransectSpacing |>      
+                                                select(SITE,TRANSECT,VALUE)
+                                               ))
+```
+
+
 ### NRSA relative bed stability
 
 Finally, we are ready to calculate relative bed stability, which relies many of the metrics already calculated from other metric functions. 
