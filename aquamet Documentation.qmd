@@ -1189,13 +1189,127 @@ unique(nrsaRiparianVegMetrics$METRIC)
 
 Slope and bearing measurements are recorded in the field only for wadeable sites, and slopes for boatable sites are usually generated using GIS. In this example dataset from data collected in the 2008-9 NRSA survey, we have slope and bearing measurements for all sites. The inputs for the function `nrsaSlopeBearing()` are separated into boatable and wadeable, and if sinuosity and slope were determined through GIS for any sites, those are added through a separate set of arguments. 
 
-For demonstration purposes, we will go through an example for boatable sites using field-collected data, even though we no longer collect data that way. We will create the inputs for boatable sites separately because those data are more complex than for wadeable sites. 
+For demonstration purposes, we will go through an example for boatable sites using GIS-based slopes because slope is no longer collected in the field on boatable sites due to the difficulty of obtaining precise enough measurements. For this reason, the only arguments for boatable sites in the `nrsaSlopeBearing()` function we need to use are `gisSlope` and `gisSinuosity`. Since these are not in the example datasets, we will simply insert them as data into the function. In practice, you would have a data frame with SITE and VALUE for any sites where you have obtained slope and sinuosity from GIS measurements. 
+
+For wadeable sites, however, we can provide field data to obtain slope and sinuosity metrics. We will use the wadeable transect spacing calculated earlier in the `nrsaGeneral()` function as `wTransectSpacing`. Data for other arguments come from manipulations of the `nrsaSlope` dataset. Some can be simply created by subsetting the dataset for a particular parameter, but for slope measurements, we need to extract first the slope and then the units and method used, as these are separate parameters in the `nrsaSlope` dataset. 
 
 ```{r nrsaSlopeBearing}
-boatBearing <- filter(nrsaSlope, SAMPLE_TYPE=='BANKB')
+# Create slope input for wadeable sites
+# First pull slope values
+wadeSlope <- nrsaSlope |>
+    filter(SAMPLE_TYPE %in% c('BANKW','SLOPEW') & PARAMETER=='SLOPE') |> 
+    select(SITE, TRANSECT, LINE=REP, VALUE) |>
+    mutate(LINE = as.integer(LINE) - 1L,
+           VALUE = as.double(VALUE))
+# Now pull slope units - note that these should be the same for all transects
+# within a site - if there is any risk of this not being the case, update data
+# before inputting into function
+wadeSlope_units <- nrsaSlope |>
+  filter(SAMPLE_TYPE %in% c('BANKW','SLOPEW') & PARAMETER %in% c('METHOD','SLOPE_UNITS')) |>
+  pivot_wider(id_cols = c(SITE, TRANSECT, REP), names_from='PARAMETER', values_from='VALUE') |>
+  mutate(SLOPE_UNITS = toupper(SLOPE_UNITS), 
+         METHOD = toupper(METHOD)) |>
+  select(SITE, TRANSECT, METHOD, UNITS = SLOPE_UNITS) |>
+  mutate(UNITS = ifelse(UNITS %in% c(NA, '') & METHOD != 'CL', 
+                              'CM', UNITS))
 
-slopeBearingMets <- nrsaSlopeBearing(
-  bBearing = filter(nrsaSlope, PARAMETER==')
+wadeSlope_in <- merge(wadeSlope, wadeSlope_units, by= c('SITE', 'TRANSECT'))
+
+slopeBearingMetrics <- nrsaSlopeBearing(
+  wBearing = nrsaSlope |>
+    filter(SAMPLE_TYPE %in% c('BANKW','SLOPEW') & PARAMETER=='BEARING') |>
+                                  mutate(REP = as.integer(REP) - 1L,
+                                         VALUE = as.double(VALUE)) |>
+                                  select(SITE, TRANSECT, LINE = REP, VALUE),
+  wTransectSpacing = wTransectSpacing,
+  wProportion = nrsaSlope |>
+                    filter(SAMPLE_TYPE %in% c('BANKW','SLOPEW') & PARAMETER=='PROP') |>
+                    select(SITE, TRANSECT, LINE=REP, VALUE) %>%
+                    mutate(VALUE = as.double(VALUE)),
+  wSlope = wadeSlope_in,
+  gisSinuosity = data.frame(SITE = as.integer(c(13799, 13904)),
+                            VALUE = c(1.068455, 1.095383)),
+  gisSlope = data.frame(SITE = as.integer(c(13799, 13904)),
+                        VALUE = c(0.0517323, 0.0021785))
 )
+
+print("The slope and bearing metrics from this function:")
+unique(slopeBearingMetrics$METRIC)
 ```
 
+### NRSA substrate characterization metrics
+
+Substrate characterization metrics for boatable and wadeable sites are based on data from different forms. For boatable sites, there are shoreline and channel substrate characterization data, as well as thalweg data, and for wadeable sites, all data are from the channel cross-section data. The `nrsaThalweg`, `nrsaChannel`, and `nrsaChanxsec` are the example datasets needed for this step. We can make things easier by first subsetting the data for the sample types, then further selecting specific parameters in the call to the `nrsaSubstrateCharacterization()` function. 
+
+```{r nrsaSubstrateCharacterization}
+ccs <- filter(nrsaChanxsec, PARAMETER %in% c('SIZE_CLS','XSIZE_CLS')) # This pull substrate info for wadeable sites
+
+chan <- filter(nrsaChannel, PARAMETER %in% c('BOTTOMDOM','BOTTOMSEC','SHOREDOM','SHORESEC')) # This pulls substrate types along the shoreline for boatable sites
+
+thal <- filter(nrsaThalweg, PARAMETER == 'SIZE_CLS') # This pulls substrate info for boatable sites
+
+nrsaSubstrateCharMetrics <- nrsaSubstrateCharacterization(
+  bBottomDom = chan |> 
+    filter(PARAMETER=='BOTTOMDOM') |> 
+    filter(TRANSECT %in% LETTERS) |> 
+    mutate(VALUE=trimws(VALUE)) |> 
+    select(SITE, TRANSECT, VALUE), 
+  bBottomSec = chan |> 
+    filter(PARAMETER=='BOTTOMSEC') |> 
+    filter(TRANSECT %in% LETTERS) |> 
+    mutate(VALUE=trimws(VALUE)) |> 
+    select(SITE, TRANSECT, VALUE),
+  bShoreDom = chan |> 
+    filter(PARAMETER=='SHOREDOM') |> 
+    filter(TRANSECT %in% LETTERS) |> 
+    mutate(VALUE=trimws(VALUE)) |> 
+    select(SITE, TRANSECT, VALUE),
+  bShoreSec = chan |> 
+    filter(PARAMETER=='SHORESEC') |> 
+    filter(TRANSECT %in% LETTERS) |> 
+    mutate(VALUE=trimws(VALUE)) |> 
+    select(SITE, TRANSECT, VALUE),
+  bSizeClass = thal |> 
+    filter(TRANSECT %in% LETTERS) |> 
+    mutate(VALUE=ifelse(trimws(VALUE) %in% c(NA,'','BH','BL','CB','GR',
+                                             'SA','FN','OT'), 
+                        trimws(VALUE), NA)) |> 
+    select(SITE, TRANSECT, VALUE),
+  wSizeClass = ccs |> 
+    filter(PARAMETER=='SIZE_CLS') |> 
+    mutate(VALUE=ifelse(VALUE %in% c(NA,'','CB','FN','GC','GF','HP','OT',
+                                     'RC','RR','RS','SA',
+                                     'SB','WD','XB'), VALUE, NA)) |> 
+    select(SITE, VALUE),
+  wMezzoSizeClass = ccs |> 
+    filter(PARAMETER=='XSIZE_CLS') |> 
+    mutate(VALUE=ifelse(VALUE %in% c(NA,'','CB','FN','GC','GF','HP','OT',
+                                     'RC', 'RR','RS','SA','SB','WD','XB'), 
+                        VALUE, NA)) |> 
+    select(SITE, VALUE)
+)
+
+print("The substrate characterization metrics from this function:")
+unique(nrsaSubstrateCharMetrics$METRIC)
+```
+
+### NRSA substrate embeddedness
+
+The function `nrsaSubstrateEmbed()` calculates substrate embeddedness for wadeable sites only. The data for this function comes from the channel cross-section data (`nrsaChanxsec`). This is a relatively straightforward function call, with simple subsetting of the dataset.
+
+```{r nrsaSubstrateEmbed}
+nrsaSubstrEmbedMetrics <- nrsaSubstrateEmbed(
+  percentEmbedded = nrsaChanxsec |>
+  subset(PARAMETER=='EMBED') |>
+  mutate(ONBANK = ifelse(TRANSDIR %in% c("LF", "RT"), TRUE, FALSE),
+                          VALUE=as.numeric(VALUE)) |> 
+    select(SITE, TRANSECT, ONBANK, VALUE)
+  )
+
+print("The substrate embeddedness metrics from this function:")
+unique(nrsaSubstrEmbedMetrics$METRIC)
+```
+
+### NRSA relative bed stability
+
+Finally, we are ready to calculate relative bed stability, which relies many of the metrics already calculated from other metric functions. 
