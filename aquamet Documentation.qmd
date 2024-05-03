@@ -9,6 +9,7 @@ format:
     toc: true
 author: 
   name: Karen Blocksom
+  id: kb
   email: blocksom.karen@epa.gov
   affiliation: 
     name: U.S. EPA, Office of Research and Development
@@ -58,6 +59,8 @@ The functions in the *aquamet* package are designed to be flexible, but they do 
 
 There is a data package created to accompany this documentation called `PHABdata`. It contains example physical habitat data following the current data structure for NARS. We will use these example datasets to walk through the steps of calculating metrics. We can take a peek at the NLA physical habitat example data using `head()`. The structure of this dataset already has the variable names of `SITE`, `STATION`, `PARAMETER`, and `VALUE` that are expected and required by the NLA metrics functions. However, the inputs to each function are expected to be subsets of individual parameters in the dataset. Therefore, it is useful to see what the parameter names in the dataset are first.
 
+## NLA dataset
+
 ```{r data-look}
 
 head(nlaPhab)
@@ -67,108 +70,137 @@ unique(nlaPhab$PARAMETER)
 
 It is obvious that there are large numbers of measurements in this dataset, and to better understand where those parameters came from, we can look at the prefix for many of these parameters. The general association of prefix to data type is:
 
-1)  AM: littoral aquatic macrophytes
-2)  BS: littoral bottom substrate
-3)  C: riparian canopy
-4)  FC: littoral fish cover
-5)  GC: riparian ground cover
-6)  HI: human influence
-7)  SS: shoreline substrate
-8)  U: riparian understory
+*  AM: littoral aquatic macrophytes
+*  BS: littoral bottom substrate
+*  C: riparian canopy
+*  FC: littoral fish cover
+*  GC: riparian ground cover
+*  HI: human influence
+*  SS: shoreline substrate
+*  U: riparian understory
 
 Also note that parameters with the suffix of \_DD are measured in the drawdown zone when one is present, and those without the suffix are measured in the standard littoral or riparian zone, depending on the parameter. Metrics based only on drawdown parameters have \_DD added to the metric name, whereas those based only on the riparian or littoral data standard plots have a suffix of \_RIP or \_LIT, respectively. There are also \_SYN metrics which are synthesized by combining the drawdown and riparian data together and \_SIM metrics which combine drawdown and littoral data. These versions of the metrics are meant to simulate the way data were collected in 2007, which did not include drawdown plots. However, it is not important to understand the details of how these data are combined, because if you include both drawdown and riparian/littoral parameter data when you call functions, the functions will automatically output all three types of metrics. Functions that can produce \_SYN metrics are nlaHumanImpact(), nlaRiparianVegetation(), and the function that can produce \_SIM metrics is nlaFishCover(). If drawdown data were not recorded, the resulting metrics would simply be the \_RIP or \_LIT metrics. For the purposes of calculating physical habitat indicators, the \_SYN and \_LIT versions of metrics are used for data from 2012 onward.
 
 ## Calculating metrics
 
-Setting up the data for calculating metrics is much simpler and more straightforward for NLA data than for NRSA data. The NLA data are structured in a single format, with all data having the following main variables: SITE, STATION, PARAMETER, VALUE. Let's start by calculating aquatic macrophyte metrics using `nlaAquaticMacrophytes()`. There are several arguments to this function, with each representing the data for a particular parameter. The expected format of those input data are SITE, STATION, VALUE (the parameter value is assumed). We can use the names of the arguments as the guide to which parameter is expected.
+Setting up the data for calculating metrics is much simpler and more straightforward for NLA data than for NRSA data. The NLA data are structured in a single format, with all data having the following main variables: SITE, STATION, PARAMETER, VALUE. 
+
+### NLA aquatic macrophyte metrics
+
+Let's start by calculating aquatic macrophyte metrics using `nlaAquaticMacrophytes()`. There are several arguments to this function, with each representing the data for a particular parameter. The expected format of those input data are SITE, STATION, VALUE (the parameter value is assumed). We can use the names of the arguments as the guide to which parameter is expected.
 
 For this function, we need to create datasets for emergent vegetation cover (parameter AM_EMERGENT), floating vegetation cover (parameter AM_FLOATING), submergent vegetation cover (parameter AM_SUBMERGENT), and total vegetation cover (parameter AM_TOTALCOVER). Since the expected input datasets only have the variables SITE, STATION, and VALUE, we also need to drop the PARAMETER variable.
 
-```{r calc-aqmac-1}
+```{r nlaAquaticMacrophytes-1}
 unique(nlaPhab$PARAMETER)
 
-emergent <- subset(nlaPhab, PARAMETER=='AM_EMERGENT', select = -PARAMETER)
+emergent <- filter(nlaPhab, PARAMETER=='AM_EMERGENT') |>
+  select(SITE, STATION, VALUE)
 
-floating <- subset(nlaPhab, PARAMETER=='AM_FLOATING', select = -PARAMETER)
+floating <- filter(nlaPhab, PARAMETER=='AM_FLOATING') |>
+  select(SITE, STATION, VALUE)
 
-submergent <- subset(nlaPhab, PARAMETER=='AM_SUBMERGENT', select = -PARAMETER)
+submergent <- filter(nlaPhab, PARAMETER=='AM_SUBMERGENT') |>
+  select(SITE, STATION, VALUE)
 
-totcover <- subset(nlaPhab, PARAMETER=='AM_TOTALCOVER', select = -PARAMETER)
+totcover <- filter(nlaPhab, PARAMETER=='AM_TOTALCOVER') |>
+  select(SITE, STATION, VALUE)
 ```
 
 There are two other arguments in the `nlaAquaticMacrophytes()` function. The one named dataInformation simply defines the different values found in the data and the weights associated with them, as well as an indicator of presence of vegetation. If using standard NLA data, this argument can be left as the default, so it does not need to be specified. The second additional argument is only used when running tests and can be ignored because its default is FALSE. Now that we have the datasets needed to run the function, we can calculate metrics.
 
-```{r calc-aqmet-2}
-aqmacroMets <- nlaAquaticMacrophytes(emergent=emergent, 
+```{r nlaAquaticMacrophytes-2}
+aqmacroMetrics <- nlaAquaticMacrophytes(emergent=emergent, 
                                      floating=floating, 
                                      submergent=submergent, 
                                      totalCover=totcover)
 
-head(aqmacroMets)
+head(aqmacroMetrics)
 ```
 
 To look at the full set of metrics calculated, we want to pivot the data into a wide format to see all metrics at once.
 
-```{r calc-aqmet-3}
-aqmacroMets.wide <- pivot_wider(aqmacroMets, id_cols = 'SITE',
+```{r nlaAquaticMacrophytes-3}
+aqmacroMetrics.wide <- pivot_wider(aqmacroMetrics, id_cols = 'SITE',
                                 names_from='METRIC', 
                                 values_from='VALUE')
 
-names(aqmacroMets.wide)
+names(aqmacroMetrics.wide)
 
 
 ```
 
 The output is a pretty simple dataset because the drawdown zone is not included in the calculations and there is only one version of each metric. Now we can perform the same preparation for the other NLA functions to get the full set of metrics.
 
-We will need to update values for the parameter ANGLE because NEAR_VERTICAL_UNDERCUT is not a valid value. It must be updated to NEAR_VERTICAL in order to use in the function. Thus, we can update the full dataset for this value first. For certain other inputs, the VALUE variable must be converted to numeric to avoid an error.
+### NLA bank features metrics
 
-```{r calc-bank-mets}
+The bank features metric calculations include drawdown information and the metrics include the vertical and horizontal drawdown. We will need to update values for the parameter ANGLE because NEAR_VERTICAL_UNDERCUT is not a valid value. It must be updated to NEAR_VERTICAL in order to use in the function. Thus, we can update the full dataset for this value first. For certain other inputs, the VALUE variable must be converted to numeric to avoid an error.
 
-angle <- subset(nlaPhab, PARAMETER=='ANGLE', select = -PARAMETER) |>
+```{r nlaBankFeatures}
+
+angle <- filter(nlaPhab, PARAMETER=='ANGLE') |>
+  select(SITE, STATION, VALUE) |>
   plyr::mutate(VALUE = ifelse(VALUE=='NEAR_VERTICAL_UNDERCUT', 'NEAR_VERTICAL', VALUE))
 
-drawdown <- subset(nlaPhab, PARAMETER=='DRAWDOWN', select = -PARAMETER)
+drawdown <- filter(nlaPhab, PARAMETER=='DRAWDOWN') |>
+  select(SITE, STATION, VALUE)
 
-horizontalDistance <- subset(nlaPhab, PARAMETER=='HORIZ_DIST', select=-PARAMETER) |>
+horizontalDistance <- filter(nlaPhab, PARAMETER=='HORIZ_DIST') |>
+  select(SITE, STATION, VALUE) |>
   plyr::mutate(VALUE = as.numeric(VALUE))
 
-horizontalDistanceDD <- subset(nlaPhab, PARAMETER=='HORIZ_DIST_DD', select=-PARAMETER) |>
+horizontalDistanceDD <- filter(nlaPhab, PARAMETER=='HORIZ_DIST_DD') |>
+  select(SITE, STATION, VALUE) |>
   plyr::mutate(VALUE = as.numeric(VALUE))
 
-verticalHeight = subset(nlaPhab, PARAMETER=='VERT_HEIGHT', select=-PARAMETER) |>
+verticalHeight = filter(nlaPhab, PARAMETER=='VERT_HEIGHT') |>
+  select(SITE, STATION, VALUE) |>
   plyr::mutate(VALUE = as.numeric(VALUE))
                             
-verticalHeightDD = subset(nlaPhab, PARAMETER=='VERT_HEIGHT_DD', select=-PARAMETER) |>
+verticalHeightDD = filter(nlaPhab, PARAMETER=='VERT_HEIGHT_DD') |>
+  select(SITE, STATION, VALUE) |>
   plyr::mutate(VALUE = as.numeric(VALUE))
 # nlaBankFeatures
-bankMets <- nlaBankFeatures(angle,
+bankMetrics <- nlaBankFeatures(angle,
                             drawdown,
                             horizontalDistance,
                             horizontalDistanceDD,
                             verticalHeight,
                             verticalHeightDD)
 
-unique(bankMets$METRIC)
+print("The bank features metrics from this function:")
+unique(bankMetrics$METRIC)
                             
 ```
 
-Now that we can see the general format of inputting data to the function and the outputs, we will run the other metric functions, preparing the input data for each one first.
+### NLA bottom substrate metrics
 
-```{r calc-other-mets-1}
+Now that we can see the general format of inputting data to the function and the outputs, we will run the other metric functions, preparing the input data for each one first. We will start with the `nlaBottomSubstrate()` function
+
+```{r nlaBottomSubstrate}
 # Bottom Substrate
-bedrock <- subset(nlaPhab,PARAMETER=='BS_BEDROCK',select=-PARAMETER)
-boulder <- subset(nlaPhab,PARAMETER=='BS_BOULDER',select=-PARAMETER)
-color <- subset(nlaPhab,PARAMETER=='BS_COLOR',select=-PARAMETER)
-cobble <- subset(nlaPhab,PARAMETER=='BS_COBBLE',select=-PARAMETER)
-gravel <- subset(nlaPhab,PARAMETER=='BS_GRAVEL',select=-PARAMETER)
-odor <- subset(nlaPhab,PARAMETER=='ODOR',select=-PARAMETER)
-organic <- subset(nlaPhab,PARAMETER=='BS_ORGANIC',select=-PARAMETER)
-sand <- subset(nlaPhab,PARAMETER=='BS_SAND',select=-PARAMETER)
-silt <- subset(nlaPhab,PARAMETER=='BS_SILT',select=-PARAMETER)
-wood <- subset(nlaPhab,PARAMETER=='BS_WOOD',select=-PARAMETER)
+bedrock <- filter(nlaPhab, PARAMETER=='BS_BEDROCK') |>
+  select(SITE, STATION, VALUE)
+boulder <- filter(nlaPhab, PARAMETER=='BS_BOULDER') |>
+  select(SITE, STATION, VALUE)
+color <- filter(nlaPhab, PARAMETER=='BS_COLOR') |>
+  select(SITE, STATION, VALUE)
+cobble <- filter(nlaPhab, PARAMETER=='BS_COBBLE') |>
+  select(SITE, STATION, VALUE)
+gravel <- filter(nlaPhab, PARAMETER=='BS_GRAVEL') |>
+  select(SITE, STATION, VALUE)
+odor <- filter(nlaPhab, PARAMETER=='ODOR') |>
+  select(SITE, STATION, VALUE)
+organic <- filter(nlaPhab, PARAMETER=='BS_ORGANIC') |>
+  select(SITE, STATION, VALUE)
+sand <- filter(nlaPhab, PARAMETER=='BS_SAND') |>
+  select(SITE, STATION, VALUE)
+silt <- filter(nlaPhab, PARAMETER=='BS_SILT') |>
+  select(SITE, STATION, VALUE)
+wood <- filter(nlaPhab, PARAMETER=='BS_WOOD') |>
+  select(SITE, STATION, VALUE)
   
-botSubMets <- nlaBottomSubstrate(bedrock,
+botSubMetrics <- nlaBottomSubstrate(bedrock,
                                  boulder,
                                  color,  
                                  cobble,
@@ -179,22 +211,39 @@ botSubMets <- nlaBottomSubstrate(bedrock,
                                  silt,
                                  wood)
 
-head(botSubMets)
-unique(botSubMets$METRIC)
+head(botSubMetrics)
+print("The bottom substrate metrics from this function:")
+unique(botSubMetrics$METRIC)
+```
 
+### NLA shoreline substrate metrics
+
+This function is structured similarly, and we can easily create the inputs from the `nlaPhab` dataset.
+
+```{r nlaShorelineSubstrate}
 # Shoreline Substrate
-bedrock <- subset(nlaPhab,PARAMETER=='SS_BEDROCK',select=-PARAMETER)
-boulder <- subset(nlaPhab,PARAMETER=='SS_BOULDERS',select=-PARAMETER)
-color <- subset(nlaPhab,PARAMETER=='SS_COLOR',select=-PARAMETER)
-cobble <- subset(nlaPhab,PARAMETER=='SS_COBBLE',select=-PARAMETER)
-gravel <- subset(nlaPhab,PARAMETER=='SS_GRAVEL',select=-PARAMETER)
-organic <- subset(nlaPhab,PARAMETER=='SS_ORGANIC',select=-PARAMETER)
-other <- subset(nlaPhab,PARAMETER=='SS_OTHER',select=-PARAMETER)
-sand <- subset(nlaPhab,PARAMETER=='SS_SAND',select=-PARAMETER)
-silt <- subset(nlaPhab,PARAMETER=='SS_SILT',select=-PARAMETER)
-wood <- subset(nlaPhab,PARAMETER=='SS_WOOD',select=-PARAMETER)
+bedrock <- filter(nlaPhab, PARAMETER=='SS_BEDROCK') |>
+  select(SITE, STATION, VALUE)
+boulder <- filter(nlaPhab, PARAMETER=='SS_BOULDERS') |>
+  select(SITE, STATION, VALUE)
+color <- filter(nlaPhab, PARAMETER=='SS_COLOR') |>
+  select(SITE, STATION, VALUE)
+cobble <- filter(nlaPhab, PARAMETER=='SS_COBBLE') |>
+  select(SITE, STATION, VALUE)
+gravel <- filter(nlaPhab, PARAMETER=='SS_GRAVEL') |>
+  select(SITE, STATION, VALUE)
+organic <- filter(nlaPhab, PARAMETER=='SS_ORGANIC') |>
+  select(SITE, STATION, VALUE)
+other <- filter(nlaPhab, PARAMETER=='SS_OTHER') |>
+  select(SITE, STATION, VALUE)
+sand <- filter(nlaPhab, PARAMETER=='SS_SAND') |>
+  select(SITE, STATION, VALUE)
+silt <- filter(nlaPhab, PARAMETER=='SS_SILT') |>
+  select(SITE, STATION, VALUE)
+wood <- filter(nlaPhab, PARAMETER=='SS_WOOD') |>
+  select(SITE, STATION, VALUE)
 
-shoreSubMets <- nlaShorelineSubstrate(bedrock,
+shoreSubMetrics <- nlaShorelineSubstrate(bedrock,
                                  boulder,
                                  cobble,
                                  gravel,
@@ -204,149 +253,253 @@ shoreSubMets <- nlaShorelineSubstrate(bedrock,
                                  silt,
                                  wood)
 
-head(shoreSubMets)
-unique(shoreSubMets$METRIC)
 
+print("The shoreline substrate metrics from this function:")
+unique(shoreSubMetrics$METRIC)
+```
+
+### NLA fish cover metrics
+
+```{r nlaFishCover}
 # Fish Cover
 
-  aquatic <- subset(nlaPhab,PARAMETER=='FC_AQUATIC',select=-PARAMETER)
-  aquatic_dd <- subset(nlaPhab,PARAMETER=='FC_AQUATIC_DD',select=-PARAMETER)
-  boulders <- subset(nlaPhab,PARAMETER=='FC_BOULDERS',select=-PARAMETER)
-  boulders_dd <- subset(nlaPhab,PARAMETER=='FC_BOULDERS_DD',select=-PARAMETER)
-  brush <- subset(nlaPhab,PARAMETER=='FC_BRUSH',select=-PARAMETER)
-  brush_dd <- subset(nlaPhab,PARAMETER=='FC_BRUSH_DD',select=-PARAMETER)
-  ledges <- subset(nlaPhab,PARAMETER=='FC_LEDGES',select=-PARAMETER)
-  ledges_dd <- subset(nlaPhab,PARAMETER=='FC_LEDGES_DD',select=-PARAMETER)
-  livetrees <- subset(nlaPhab,PARAMETER=='FC_LIVETREES',select=-PARAMETER)
-  livetrees_dd <- subset(nlaPhab,PARAMETER=='FC_LIVETREES_DD',select=-PARAMETER)
-  overhang <- subset(nlaPhab,PARAMETER=='FC_OVERHANG',select=-PARAMETER)
-  overhang_dd <- subset(nlaPhab,PARAMETER=='FC_OVERHANG_DD',select=-PARAMETER)
-  snags <- subset(nlaPhab,PARAMETER=='FC_SNAGS',select=-PARAMETER)
-  snags_dd <- subset(nlaPhab,PARAMETER=='FC_SNAGS_DD',select=-PARAMETER)
-  structures <- subset(nlaPhab,PARAMETER=='FC_STRUCTURES',select=-PARAMETER)
-  structures_dd <- subset(nlaPhab,PARAMETER=='FC_STRUCTURES_DD',select=-PARAMETER)
-  drawdown <- subset(nlaPhab,PARAMETER=='DRAWDOWN',select=-PARAMETER)
+  aquatic <- filter(nlaPhab, PARAMETER=='FC_AQUATIC') |>
+    select(SITE, STATION, VALUE)
+  aquatic_dd <- filter(nlaPhab, PARAMETER=='FC_AQUATIC_DD') |>
+    select(SITE, STATION, VALUE)
+  boulders <- filter(nlaPhab, PARAMETER=='FC_BOULDERS') |>
+    select(SITE, STATION, VALUE)
+  boulders_dd <- filter(nlaPhab, PARAMETER=='FC_BOULDERS_DD') |>
+    select(SITE, STATION, VALUE)
+  brush <- filter(nlaPhab, PARAMETER=='FC_BRUSH') |>
+    select(SITE, STATION, VALUE)
+  brush_dd <- filter(nlaPhab, PARAMETER=='FC_BRUSH_DD') |>
+    select(SITE, STATION, VALUE)
+  ledges <- filter(nlaPhab, PARAMETER=='FC_LEDGES') |>
+    select(SITE, STATION, VALUE)
+  ledges_dd <- filter(nlaPhab, PARAMETER=='FC_LEDGES_DD') |>
+    select(SITE, STATION, VALUE)
+  livetrees <- filter(nlaPhab, PARAMETER=='FC_LIVETREES') |>
+    select(SITE, STATION, VALUE)
+  livetrees_dd <- filter(nlaPhab, PARAMETER=='FC_LIVETREES_DD') |>
+    select(SITE, STATION, VALUE)
+  overhang <- filter(nlaPhab, PARAMETER=='FC_OVERHANG') |>
+    select(SITE, STATION, VALUE)
+  overhang_dd <- filter(nlaPhab, PARAMETER=='FC_OVERHANG_DD') |>
+    select(SITE, STATION, VALUE)
+  snags <- filter(nlaPhab, PARAMETER=='FC_SNAGS') |>
+    select(SITE, STATION, VALUE)
+  snags_dd <- filter(nlaPhab, PARAMETER=='FC_SNAGS_DD') |>
+    select(SITE, STATION, VALUE)
+  structures <- filter(nlaPhab, PARAMETER=='FC_STRUCTURES') |>
+    select(SITE, STATION, VALUE)
+  structures_dd <- filter(nlaPhab, PARAMETER=='FC_STRUCTURES_DD') |>
+    select(SITE, STATION, VALUE)
+  drawdown <- filter(nlaPhab, PARAMETER=='DRAWDOWN') |>
+    select(SITE, STATION, VALUE)
   
   # Ensure VALUE is numeric for this particular subset
-  horizontalDistance_dd <- subset(nlaPhab,PARAMETER=='HORIZ_DIST_DD',
-     select=-PARAMETER)
-  horizontalDistance_dd$VALUE <- with(horizontalDistance_dd, as.numeric(VALUE))
-  
+  horizontalDistance_dd <- filter(nlaPhab, PARAMETER=='HORIZ_DIST_DD') |>
+    select(SITE, STATION, VALUE) |>
+    mutate(VALUE = as.numeric(VALUE))
+
   # Use defaults for fillinDrawdown, createSyntheticCovers, and coverClassInfo
   # arguments
-  fishCovMets <- nlaFishCover(aquatic, aquatic_dd,
-                              boulders, boulders_dd,
-                              brush, brush_dd, 
-                              ledges, ledges_dd, 
-                              livetrees, livetrees_dd, 
-                              overhang, overhang_dd,
-                              snags, snags_dd, 
-                              structures, structures_dd, 
-                              drawdown, horizontalDistance_dd)
+  fishCovMetrics <- nlaFishCover(aquatic, 
+                              aquatic_dd,
+                              boulders, 
+                              boulders_dd,
+                              brush, 
+                              brush_dd, 
+                              ledges, 
+                              ledges_dd, 
+                              livetrees, 
+                              livetrees_dd, 
+                              overhang, 
+                              overhang_dd,
+                              snags, 
+                              snags_dd, 
+                              structures, 
+                              structures_dd, 
+                              drawdown, 
+                              horizontalDistance_dd)
   
-  head(fishCovMets)
-  unique(fishCovMets$METRIC)
+  print("The fish cover metrics from this function:")
+  unique(fishCovMetrics$METRIC)
 ```
+
+### NLA human impact metrics
 
 Where possible, we can subset the example dataset within the call to the metric function. This is demonstrated below. Sometimes, if a particular result must be converted to numeric, we may have to subset before calling the function.
 
-```{r calc-other-mets-2}
+```{r nlaHumanImpact}
   # Human Influence metrics
-  humInflMets <- nlaHumanImpact(
-    buildings = subset(nlaPhab,PARAMETER=='HI_BUILDINGS',select=-PARAMETER),
-    buildings_dd = subset(nlaPhab,PARAMETER=='HI_BUILDINGS_DD',select=-PARAMETER),
-    commercial = subset(nlaPhab,PARAMETER=='HI_COMMERCIAL',select=-PARAMETER),
-    commercial_dd = subset(nlaPhab,PARAMETER=='HI_COMMERCIAL_DD',select=-PARAMETER),
-    crops = subset(nlaPhab,PARAMETER=='HI_CROPS',select=-PARAMETER),
-    crops_dd = subset(nlaPhab,PARAMETER=='HI_CROPS_DD',select=-PARAMETER),
-    docks = subset(nlaPhab,PARAMETER=='HI_DOCKS',select=-PARAMETER),
-    docks_dd = subset(nlaPhab,PARAMETER=='HI_DOCKS_DD',select=-PARAMETER),
-    landfill = subset(nlaPhab,PARAMETER=='HI_LANDFILL',select=-PARAMETER),
-    landfill_dd = subset(nlaPhab,PARAMETER=='HI_LANDFILL_DD',select=-PARAMETER),
-    lawn = subset(nlaPhab,PARAMETER=='HI_LAWN',select=-PARAMETER),
-    lawn_dd = subset(nlaPhab,PARAMETER=='HI_LAWN_DD',select=-PARAMETER),
-    orchard = subset(nlaPhab,PARAMETER=='HI_ORCHARD',select=-PARAMETER),
-    orchard_dd = subset(nlaPhab,PARAMETER=='HI_ORCHARD_DD',select=-PARAMETER),
-    other = subset(nlaPhab,PARAMETER=='HI_OTHER',select=-PARAMETER),
-    other_dd = subset(nlaPhab,PARAMETER=='HI_OTHER_DD',select=-PARAMETER),
-    park = subset(nlaPhab,PARAMETER=='HI_PARK',select=-PARAMETER),
-    park_dd = subset(nlaPhab,PARAMETER=='HI_PARK_DD',select=-PARAMETER),
-    pasture = subset(nlaPhab,PARAMETER=='HI_PASTURE',select=-PARAMETER),
-    pasture_dd = subset(nlaPhab,PARAMETER=='HI_PASTURE_DD',select=-PARAMETER),
-    powerlines = subset(nlaPhab,PARAMETER=='HI_POWERLINES',select=-PARAMETER),
-    powerlines_dd = subset(nlaPhab,PARAMETER=='HI_POWERLINES_DD',select=-PARAMETER),
-    roads = subset(nlaPhab,PARAMETER=='HI_ROADS',select=-PARAMETER),
-    roads_dd = subset(nlaPhab,PARAMETER=='HI_ROADS_DD',select=-PARAMETER),
-    walls = subset(nlaPhab,PARAMETER=='HI_WALLS',select=-PARAMETER),
-    walls_dd = subset(nlaPhab,PARAMETER=='HI_WALLS_DD',select=-PARAMETER),
-    drawdown = subset(nlaPhab,PARAMETER=='DRAWDOWN',select=-PARAMETER),
-    horizontalDistance_dd = subset(nlaPhab,PARAMETER=='HORIZ_DIST_DD',select=-PARAMETER)
+  humInflMetrics <- nlaHumanImpact(
+    buildings = filter(nlaPhab,PARAMETER=='HI_BUILDINGS') |>
+      select(SITE, STATION, VALUE),
+    buildings_dd = filter(nlaPhab,PARAMETER=='HI_BUILDINGS_DD') |>
+      select(SITE, STATION, VALUE),
+    commercial = filter(nlaPhab,PARAMETER=='HI_COMMERCIAL') |>
+      select(SITE, STATION, VALUE),
+    commercial_dd = filter(nlaPhab,PARAMETER=='HI_COMMERCIAL_DD') |>
+      select(SITE, STATION, VALUE),
+    crops = filter(nlaPhab,PARAMETER=='HI_CROPS') |>
+      select(SITE, STATION, VALUE),
+    crops_dd = filter(nlaPhab,PARAMETER=='HI_CROPS_DD') |>
+      select(SITE, STATION, VALUE),
+    docks = filter(nlaPhab,PARAMETER=='HI_DOCKS') |>
+      select(SITE, STATION, VALUE),
+    docks_dd = filter(nlaPhab,PARAMETER=='HI_DOCKS_DD') |>
+      select(SITE, STATION, VALUE),
+    landfill = filter(nlaPhab,PARAMETER=='HI_LANDFILL') |>
+      select(SITE, STATION, VALUE),
+    landfill_dd = filter(nlaPhab,PARAMETER=='HI_LANDFILL_DD') |>
+      select(SITE, STATION, VALUE),
+    lawn = filter(nlaPhab,PARAMETER=='HI_LAWN') |>
+      select(SITE, STATION, VALUE),
+    lawn_dd = filter(nlaPhab,PARAMETER=='HI_LAWN_DD') |>
+      select(SITE, STATION, VALUE),
+    orchard = filter(nlaPhab,PARAMETER=='HI_ORCHARD') |>
+      select(SITE, STATION, VALUE),
+    orchard_dd = filter(nlaPhab,PARAMETER=='HI_ORCHARD_DD') |>
+      select(SITE, STATION, VALUE),
+    other = filter(nlaPhab,PARAMETER=='HI_OTHER') |>
+      select(SITE, STATION, VALUE),
+    other_dd = filter(nlaPhab,PARAMETER=='HI_OTHER_DD') |>
+      select(SITE, STATION, VALUE),
+    park = filter(nlaPhab,PARAMETER=='HI_PARK') |>
+      select(SITE, STATION, VALUE),
+    park_dd = filter(nlaPhab,PARAMETER=='HI_PARK_DD') |>
+      select(SITE, STATION, VALUE),
+    pasture = filter(nlaPhab,PARAMETER=='HI_PASTURE') |>
+      select(SITE, STATION, VALUE),
+    pasture_dd = filter(nlaPhab,PARAMETER=='HI_PASTURE_DD') |>
+      select(SITE, STATION, VALUE),
+    powerlines = filter(nlaPhab,PARAMETER=='HI_POWERLINES') |>
+      select(SITE, STATION, VALUE),
+    powerlines_dd = filter(nlaPhab,PARAMETER=='HI_POWERLINES_DD') |>
+      select(SITE, STATION, VALUE),
+    roads = filter(nlaPhab,PARAMETER=='HI_ROADS') |>
+      select(SITE, STATION, VALUE),
+    roads_dd = filter(nlaPhab,PARAMETER=='HI_ROADS_DD') |>
+      select(SITE, STATION, VALUE),
+    walls = filter(nlaPhab,PARAMETER=='HI_WALLS') |>
+      select(SITE, STATION, VALUE),
+    walls_dd = filter(nlaPhab,PARAMETER=='HI_WALLS_DD') |>
+      select(SITE, STATION, VALUE),
+    drawdown = filter(nlaPhab,PARAMETER=='DRAWDOWN') |>
+      select(SITE, STATION, VALUE),
+    horizontalDistance_dd = filter(nlaPhab,PARAMETER=='HORIZ_DIST_DD') |>
+      select(SITE, STATION, VALUE)
   )
   
-head(humInflMets)
-unique(humInflMets$METRIC)
+print("The human impact/influence metrics from this function:")
+unique(humInflMetrics$METRIC)
+```
 
+### NLA littoral zone metrics
+
+```{r nlaLittoralZone}
 
 # Littoral Zone metrics
-litZoneMets <- nlaLittoralZone(littoralFilm = subset(nlaPhab, 
-                                PARAMETER=='SURFACE_FILM',select=-PARAMETER), 
-                               data2007=FALSE)
+litZoneMetrics <- nlaLittoralZone(
+  littoralFilm = filter(nlaPhab, PARAMETER=='SURFACE_FILM') |>
+    select(SITE, STATION, VALUE),
+  data2007=FALSE)
 
-head(litZoneMets)
-unique(litZoneMets$METRIC)
+print("The littoral zone metrics from this function:")
+unique(litZoneMetrics$METRIC)
+```
 
+### NLA riparian vegetation metrics
+
+```{r nlaRiparianVegetation}
 # Riparian vegetation metrics
-ripVegMets <- nlaRiparianVegetation(
-  bigTrees = subset(nlaPhab,PARAMETER=='C_BIGTREES',select=-PARAMETER),
-  bigTrees_dd = subset(nlaPhab,PARAMETER=='C_BIGTREES_DD',select=-PARAMETER),
-  smallTrees = subset(nlaPhab,PARAMETER=='C_SMALLTREES',select=-PARAMETER),
-  smallTrees_dd = subset(nlaPhab,PARAMETER=='C_SMALLTREES_DD',select=-PARAMETER),
-  canopyType = subset(nlaPhab,PARAMETER=='CANOPY',select=-PARAMETER),
-  canopyType_dd = subset(nlaPhab,PARAMETER=='CANOPY_DD',select=-PARAMETER),
-  groundcoverBare = subset(nlaPhab,PARAMETER=='GC_BARE',select=-PARAMETER),
-  groundcoverBare_dd = subset(nlaPhab,PARAMETER=='GC_BARE_DD',select=-PARAMETER),
-  groundcoverInundated = subset(nlaPhab,PARAMETER=='GC_INUNDATED',select=-PARAMETER),
-  groundcoverInundated_dd = subset(nlaPhab,PARAMETER=='GC_INUNDATED_DD',select=-PARAMETER),
-  groundcoverNonwoody = subset(nlaPhab,PARAMETER=='GC_NONWOODY',select=-PARAMETER),
-  groundcoverNonwoody_dd = subset(nlaPhab,PARAMETER=='GC_NONWOODY_DD',select=-PARAMETER),
-  groundcoverWoody = subset(nlaPhab,PARAMETER=='GC_WOODY',select=-PARAMETER),
-  groundcoverWoody_dd = subset(nlaPhab,PARAMETER=='GC_WOODY_DD',select=-PARAMETER),
-  understoryNonwoody = subset(nlaPhab,PARAMETER=='U_NONWOODY',select=-PARAMETER),
-  understoryNonwoody_dd = subset(nlaPhab,PARAMETER=='U_NONWOODY_DD',select=-PARAMETER),
-  understoryWoody = subset(nlaPhab,PARAMETER=='U_WOODY',select=-PARAMETER),
-  understoryWoody_dd = subset(nlaPhab,PARAMETER=='U_WOODY_DD',select=-PARAMETER),
-  understoryType = subset(nlaPhab,PARAMETER=='UNDERSTORY',select=-PARAMETER),
-  understoryType_dd = subset(nlaPhab,PARAMETER=='UNDERSTORY_DD',select=-PARAMETER),
-  drawdown = subset(nlaPhab,PARAMETER=='DRAWDOWN',select=-PARAMETER),
-  horizontalDistance_dd = subset(nlaPhab,PARAMETER=='HORIZ_DIST_DD',select=-PARAMETER),
+ripVegMetrics <- nlaRiparianVegetation(
+  bigTrees = filter(nlaPhab,PARAMETER=='C_BIGTREES') |>
+    select(SITE, STATION, VALUE),
+  bigTrees_dd = filter(nlaPhab,PARAMETER=='C_BIGTREES_DD') |>
+    select(SITE, STATION, VALUE),
+  smallTrees = filter(nlaPhab,PARAMETER=='C_SMALLTREES') |>
+    select(SITE, STATION, VALUE),
+  smallTrees_dd = filter(nlaPhab,PARAMETER=='C_SMALLTREES_DD') |>
+    select(SITE, STATION, VALUE),
+  canopyType = filter(nlaPhab,PARAMETER=='CANOPY') |>
+    select(SITE, STATION, VALUE),
+  canopyType_dd = filter(nlaPhab,PARAMETER=='CANOPY_DD') |>
+    select(SITE, STATION, VALUE),
+  groundcoverBare = filter(nlaPhab,PARAMETER=='GC_BARE') |>
+    select(SITE, STATION, VALUE),
+  groundcoverBare_dd = filter(nlaPhab,PARAMETER=='GC_BARE_DD') |>
+    select(SITE, STATION, VALUE),
+  groundcoverInundated = filter(nlaPhab,PARAMETER=='GC_INUNDATED') |>
+    select(SITE, STATION, VALUE),
+  groundcoverInundated_dd = filter(nlaPhab,PARAMETER=='GC_INUNDATED_DD') |>
+    select(SITE, STATION, VALUE),
+  groundcoverNonwoody = filter(nlaPhab,PARAMETER=='GC_NONWOODY') |>
+    select(SITE, STATION, VALUE),
+  groundcoverNonwoody_dd = filter(nlaPhab,PARAMETER=='GC_NONWOODY_DD') |>
+    select(SITE, STATION, VALUE),
+  groundcoverWoody = filter(nlaPhab,PARAMETER=='GC_WOODY') |>
+    select(SITE, STATION, VALUE),
+  groundcoverWoody_dd = filter(nlaPhab,PARAMETER=='GC_WOODY_DD') |>
+    select(SITE, STATION, VALUE),
+  understoryNonwoody = filter(nlaPhab,PARAMETER=='U_NONWOODY') |>
+    select(SITE, STATION, VALUE),
+  understoryNonwoody_dd = filter(nlaPhab,PARAMETER=='U_NONWOODY_DD') |>
+    select(SITE, STATION, VALUE),
+  understoryWoody = filter(nlaPhab,PARAMETER=='U_WOODY') |>
+    select(SITE, STATION, VALUE),
+  understoryWoody_dd = filter(nlaPhab,PARAMETER=='U_WOODY_DD') |>
+    select(SITE, STATION, VALUE),
+  understoryType = filter(nlaPhab,PARAMETER=='UNDERSTORY') |>
+    select(SITE, STATION, VALUE),
+  understoryType_dd = filter(nlaPhab,PARAMETER=='UNDERSTORY_DD') |>
+    select(SITE, STATION, VALUE),
+  drawdown = filter(nlaPhab,PARAMETER=='DRAWDOWN') |>
+    select(SITE, STATION, VALUE),
+  horizontalDistance_dd = filter(nlaPhab,PARAMETER=='HORIZ_DIST_DD') |>
+    select(SITE, STATION, VALUE)
 )
 
-unique(ripVegMets$METRIC)
+print("The riparian vegetation metrics from this function:")
+unique(ripVegMetrics$METRIC)
+```
 
+### NLA station information metrics
+
+```{r nlaStationInformation}
 # NLA station information
-isIsland <- subset(nlaPhab,PARAMETER=='ISLAND' & VALUE %in% c('YES','Y'),
-  select=-PARAMETER)
+isIsland <- filter(nlaPhab, PARAMETER=='ISLAND' & VALUE %in% c('YES','Y')) |>
+  select(SITE, STATION, VALUE)
   
-depth <- subset(nlaPhab,PARAMETER=='DEPTH_AT_STATION',select=-PARAMETER)
-depth$VALUE <- as.numeric(depth$VALUE)
-  
-statInfoMets <- nlaStationInformation(isIsland = isIsland, stationDepth = depth)
+depth <- filter(nlaPhab, PARAMETER=='DEPTH_AT_STATION') |>
+  select(SITE, STATION, VALUE) |>
+  mutate(VALUE = as.numeric(VALUE))
 
-unique(statInfoMets$METRIC)
+statInfoMetrics <- nlaStationInformation(
+  isIsland = isIsland, 
+  stationDepth = depth)
+
+print("The station information metrics from this function:")
+unique(statInfoMetrics$METRIC)
 
 ```
+
+### Combine NLA metrics
 
 Now we will want to combine all of the metrics into a single data frame and pivoting them wider for ease of use later.
 
 ```{r combine-metrics}
-nlaMets <- rbind(aqmacroMets, bankMets, botSubMets, shoreSubMets,
-                 fishCovMets, humInflMets, litZoneMets, 
-                 ripVegMets, statInfoMets) 
+nlaMetrics <- rbind(aqmacroMetrics, bankMetrics, botSubMetrics, shoreSubMetrics,
+                 fishCovMetrics, humInflMetrics, litZoneMetrics, 
+                 ripVegMetrics, statInfoMetrics) 
 
-mets_to_numeric <- subset(nlaMets, METRIC %nin% c('BFOANGLE', 'BSOPCLASS', 'BSOFCLASS', 'BSOCOLOR', 'BSOODOR', 'SSOPCLASS', 'SSOFCLASS', 'LZOFILM'), select = METRIC) |>
+mets_to_numeric <- filter(nlaMetrics, METRIC %nin% c('BFOANGLE', 'BSOPCLASS', 'BSOFCLASS', 'BSOCOLOR', 'BSOODOR', 'SSOPCLASS', 'SSOFCLASS', 'LZOFILM')) |>
+  select(METRIC) |>
   unique()
 
-nlaMets.wide <- pivot_wider(nlaMets, id_cols = 'SITE', names_from='METRIC', values_from='VALUE') |>
+nlaMetrics.wide <- pivot_wider(nlaMetrics, id_cols = 'SITE', names_from='METRIC', values_from='VALUE') |>
   mutate(across(mets_to_numeric$METRIC, as.numeric))
 ```
 
@@ -382,7 +535,7 @@ sitedata <- data.frame(SITE=c(6400, 6469, 6768, 6865, 6869, 7623,
 
 sitedata
 
-indicIn <- merge(sitedata, nlaMets.wide, by = 'SITE')
+indicIn <- merge(sitedata, nlaMetrics.wide, by = 'SITE')
 
 ```
 
@@ -649,17 +802,17 @@ These are calculated using the `nrsaBankMorphology()` function, and data are pro
 chanrip <- filter(nrsaChanrip, PARAMETER %in% c('ANGLE','UNDERCUT')) 
 chan <- filter(nrsaChannel, PARAMETER == 'BKANGLE')
 
-bankMorphMets <- nrsaBankMorphology(bAngle = select(chan, SITE, VALUE), 
-                        wAngle = subset(chanrip, PARAMETER=='ANGLE') |> 
+bankMorphMetrics <- nrsaBankMorphology(bAngle = select(chan, SITE, VALUE), 
+                        wAngle = filter(chanrip, PARAMETER=='ANGLE') |> 
                           mutate(VALUE=as.numeric(VALUE)) |>
                           select(SITE, VALUE),
-                        wUndercut = subset(chanrip, PARAMETER=='UNDERCUT') |>
+                        wUndercut = filter(chanrip, PARAMETER=='UNDERCUT') |>
                           mutate(VALUE=as.numeric(VALUE)) |>
                           select(SITE, VALUE)
                         )
 
 print("The bank morphology metrics from this function:")
-unique(bankMorphMets$METRIC)
+unique(bankMorphMetrics$METRIC)
 
 ```
 
@@ -668,22 +821,22 @@ unique(bankMorphMets$METRIC)
 These metrics are calculated using the `nrsaCanopyDensiometer()` function, and all data come from the `nrsaChanrip` dataset.
 
 ```{r nrsaCanopyDensio}
-canDensMets <- nrsaCanopyDensiometer(bDensiom = nrsaChanrip |> 
-                                     subset(SAMPLE_TYPE=='CANCOVERB' & PARAMETER=='DENSIOM') |> 
+canDensMetrics <- nrsaCanopyDensiometer(bDensiom = nrsaChanrip |> 
+                                     filter(SAMPLE_TYPE=='CANCOVERB' & PARAMETER=='DENSIOM') |> 
                                      dplyr::rename(DIRECTION=BANK) |> 
-                                     subset(VALUE %nin% c('',NA,'NA')) |> 
+                                     filter(VALUE %nin% c('',NA,'NA')) |> 
                                      mutate(VALUE=as.numeric(VALUE)) |>
                                      select(SITE, VALUE),
                            wDensiom = nrsaChanrip |> 
-                                     subset(SAMPLE_TYPE=='CANCOVERW' & PARAMETER=='DENSIOM') |>
+                                     filter(SAMPLE_TYPE=='CANCOVERW' & PARAMETER=='DENSIOM') |>
                                      dplyr::rename(DIRECTION=BANK) |> 
-                                     subset(VALUE %nin% c('',NA,'NA')) |> 
+                                     filter(VALUE %nin% c('',NA,'NA')) |> 
                                      mutate(VALUE=as.numeric(VALUE)) |>
                                      select(SITE, DIRECTION, VALUE)
                            )
 
 print("The canopy density metrics from this function:")
-unique(canDensMets$METRIC)
+unique(canDensMetrics$METRIC)
 ```
 
 ### NRSA channel characteristics
@@ -691,45 +844,45 @@ unique(canDensMets$METRIC)
 Channel characteristics metrics are calculated by the `nrsaChannelChar()` function.
 
 ```{r nrsaChannelChar}
-chanCharMets <- nrsaChannelChar(
+chanCharMetrics <- nrsaChannelChar(
                      bankfullWidth = nrsaChanconst |> 
-                       subset(PARAMETER == 'BANKFULL') |> 
+                       filter(PARAMETER == 'BANKFULL') |> 
                        select(SITE, VALUE) |> 
                        mutate(VALUE=as.numeric(VALUE)),
                      channelPattern = nrsaChanconst |> 
-                       subset(PARAMETER == 'PATTERN') |>
+                       filter(PARAMETER == 'PATTERN') |>
                        select(SITE, VALUE),
                      constraintFeatures = nrsaChanconst |>
-                       subset(PARAMETER == 'FEATURES') |> 
+                       filter(PARAMETER == 'FEATURES') |> 
                        select(SITE, VALUE),
                      constraintMultiple = nrsaChannel |> 
-                       subset(PARAMETER == 'CONSTRT') |>
+                       filter(PARAMETER == 'CONSTRT') |>
                        select(SITE, VALUE),
                      constraintSingle = nrsaChanconst |> 
-                       subset(PARAMETER == 'CONSTRNT') |>
+                       filter(PARAMETER == 'CONSTRNT') |>
                        select(SITE, VALUE),
                      constraintPercent = nrsaChanconst |> 
-                       subset(PARAMETER == 'PERCENT') |>
+                       filter(PARAMETER == 'PERCENT') |>
                        select(SITE, VALUE) |>
                        mutate(VALUE=as.numeric(VALUE)),
                      seeOverBank = nrsaChannel |>
-                       subset(PARAMETER == 'SEEOVRBK') |> 
+                       filter(PARAMETER == 'SEEOVRBK') |> 
                        select(SITE, VALUE),
                      shoreToVegDistance = nrsaChannel |>
-                       subset(PARAMETER == 'SHOR2RIP') |>
+                       filter(PARAMETER == 'SHOR2RIP') |>
                        select(SITE, VALUE) |>
                        mutate(VALUE=as.numeric(VALUE)),
                      valleyConstraintUnseen = nrsaChanconst |> 
-                       subset(PARAMETER == 'VALLEYBOX') |>
+                       filter(PARAMETER == 'VALLEYBOX') |>
                        select(SITE, VALUE),
                      valleyWidth = nrsaChanconst |> 
-                       subset(PARAMETER == 'VALLEY') |>
+                       filter(PARAMETER == 'VALLEY') |>
                        select(SITE, VALUE) |>
                        mutate(VALUE=as.numeric(VALUE))
                      )
 
 print("The channel characteristics metrics from this function:")
-unique(chanCharMets$METRIC)
+unique(chanCharMetrics$METRIC)
 ```
 
 ### NRSA channel habitat metrics
@@ -738,18 +891,18 @@ To calculate channel habitat metrics, which are based on thalweg depth measureme
 
 ```{r nrsaChannelHabitat}
 
-chanHabMets <- nrsaChannelHabitat(
+chanHabMetrics <- nrsaChannelHabitat(
   bChannelUnit = nrsaThalweg |> 
-    subset(PARAMETER=='CHANUNCD' & SAMPLE_TYPE=='THALB') |> 
+    filter(PARAMETER=='CHANUNCD' & SAMPLE_TYPE=='THALB') |> 
     mutate(VALUE=trimws(VALUE)) |>
     select(SITE, VALUE),
   wChannelUnit = nrsaThalweg |> 
-    subset(PARAMETER=='CHANUNCD' & SAMPLE_TYPE=='THALW') |>
+    filter(PARAMETER=='CHANUNCD' & SAMPLE_TYPE=='THALW') |>
     mutate(VALUE=ifelse(VALUE=='PO', 'P', trimws(VALUE))) |>
     select(SITE, VALUE))
 
 print("The channel habitat metrics from this function:")
-unique(chanHabMets$METRIC)
+unique(chanHabMetrics$METRIC)
 ```
 
 ### NRSA channel morphology metrics
@@ -766,13 +919,13 @@ channel <- nrsaChannel |>
   mutate(VALUE=trimws(VALUE), UNITS='M')
 
 wthalDepth <- nrsaThalweg |> 
-              subset(PARAMETER %in% c('DEPTH')) |> 
+              filter(PARAMETER %in% c('DEPTH')) |> 
               select(-PARAMETER) |> 
               mutate(UNITS='CM') |>
-              subset(VALUE %nin% c(NA,''))
-bthalDepth <- merge(subset(thalweg, PARAMETER %in% c('POLE','SONAR')) |> 
+              filter(VALUE %nin% c(NA,''))
+bthalDepth <- merge(filter(thalweg, PARAMETER %in% c('POLE','SONAR')) |> 
                   select(-PARAMETER),
-                  subset(thalweg, PARAMETER %in% c('DEPTH_UNITS')) |> 
+                  filter(thalweg, PARAMETER %in% c('DEPTH_UNITS')) |> 
                   dplyr::rename(UNITS=VALUE) |>
                   select(-PARAMETER, -STATION), 
                    by=c('SITE','SAMPLE_TYPE','TRANSECT'),
@@ -786,41 +939,41 @@ verification <- nrsaVisits |>
 wadedSites <- filter(verification, VALXSITE=='WADEABLE')$SITE
 # NOTE: site 138500 is classed as boatable but has wadeable data.  There are 300 sites with NONE protocol, but those don't show up here.
 
-chanMorphMets <- nrsaChannelMorphology(
-  bBankHeight = subset(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('BANKHT')) |>
+chanMorphMetrics <- nrsaChannelMorphology(
+  bBankHeight = filter(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('BANKHT')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |> 
     select(SITE, TRANSECT, VALUE, UNITS),
-  bBankWidth = subset(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('BANKWID')) |>
+  bBankWidth = filter(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('BANKWID')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
     select(SITE, TRANSECT, VALUE, UNITS),
   bDepth = bthalDepth |> 
     mutate(VALUE=as.numeric(VALUE)) |>
     select(SITE, TRANSECT, STATION, VALUE, UNITS),
-  bIncisedHeight = subset(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('INCISED')) |>
+  bIncisedHeight = filter(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('INCISED')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |> 
     select(SITE, TRANSECT, VALUE, UNITS),
-  bWettedWidth = subset(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('WETWID')) |>
+  bWettedWidth = filter(nrsaChannel, SAMPLE_TYPE=='BANKB' & PARAMETER %in% c('WETWID')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
     select(SITE, TRANSECT, VALUE, UNITS),
-  wBankHeight = subset(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('BANKHT')) |>
+  wBankHeight = filter(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('BANKHT')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
     select(SITE, TRANSECT, VALUE, UNITS),
-  wBankWidth = subset(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('BANKWID')) |>
+  wBankWidth = filter(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('BANKWID')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
     select(SITE, TRANSECT, VALUE, UNITS),
   wDepth = wthalDepth |> 
     mutate(VALUE=as.numeric(VALUE)) |> 
     select(SITE, TRANSECT, STATION, VALUE, UNITS),
-  wIncisedHeight =subset(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('INCISED')) |>
+  wIncisedHeight =filter(nrsaChannel, SAMPLE_TYPE=='BANKW' & PARAMETER %in% c('INCISED')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
     select(SITE, TRANSECT, VALUE, UNITS),
-  wWettedWidth = subset(nrsaThalweg, SAMPLE_TYPE=='THALW' & PARAMETER %in% c('WETWIDTH')) |>
+  wWettedWidth = filter(nrsaThalweg, SAMPLE_TYPE=='THALW' & PARAMETER %in% c('WETWIDTH')) |>
     mutate(VALUE=as.numeric(VALUE), UNITS='M') |>
     select(SITE, TRANSECT, STATION, VALUE, UNITS)
   )
 
 print("The channel morphology metrics from this function:")
-unique(chanMorphMets$METRIC)
+unique(chanMorphMetrics$METRIC)
 ```
 
 ### NRSA fish cover metrics
@@ -828,38 +981,38 @@ unique(chanMorphMets$METRIC)
 Unsurprisingly at this point, fish cover metrics are calculated using the function `nrsaFishCover()`. The data for these metrics are located in the example dataset `nrsaChannel`.
 
 ```{r nrsaFishCover}
-fishCovMets <- nrsaFishCover(
+fishCovMetrics <- nrsaFishCover(
   algae = nrsaChannel |> 
-    subset(PARAMETER=='ALGAE') |>
+    filter(PARAMETER=='ALGAE') |>
     select(SITE, TRANSECT, VALUE),
   boulder = nrsaChannel |> 
-    subset(PARAMETER=='BOULDR') |> 
+    filter(PARAMETER=='BOULDR') |> 
     select(SITE, TRANSECT, VALUE),
   brush = nrsaChannel |> 
-    subset(PARAMETER=='BRUSH') |> 
+    filter(PARAMETER=='BRUSH') |> 
     select(SITE, TRANSECT, VALUE),
   liveTree = nrsaChannel |> 
-    subset(PARAMETER=='LVTREE') |> 
+    filter(PARAMETER=='LVTREE') |> 
     select(SITE, TRANSECT, VALUE),
   macrophytes = nrsaChannel |> 
-    subset(PARAMETER=='MACPHY') |> 
+    filter(PARAMETER=='MACPHY') |> 
     select(SITE, TRANSECT, VALUE),
   overhang = nrsaChannel |> 
-    subset(PARAMETER=='OVRHNG') |> 
+    filter(PARAMETER=='OVRHNG') |> 
     select(SITE, TRANSECT, VALUE),
   structures = nrsaChannel |> 
-    subset(PARAMETER=='STRUCT') |> 
+    filter(PARAMETER=='STRUCT') |> 
     select(SITE, TRANSECT, VALUE),
   undercut = nrsaChannel |> 
-    subset(PARAMETER == 'UNDCUT') |> 
+    filter(PARAMETER == 'UNDCUT') |> 
     select(SITE, TRANSECT, VALUE),
   woodyDebris = nrsaChannel |> 
-    subset(PARAMETER=='WOODY') |> 
+    filter(PARAMETER=='WOODY') |> 
     select(SITE, TRANSECT, VALUE)
   )
 
 print("The fish cover metrics from this function:")
-unique(fishCovMets$METRIC)
+unique(fishCovMetrics$METRIC)
 ```
 
 ### NRSA general site metrics
@@ -1068,12 +1221,12 @@ sideChan <- nrsaThalweg |>
   
 transSpacing <- bind_rows(bTransectSpacing, wTransectSpacing)
 
-generalMets <- nrsaGeneral(sampledTransects = sampTrans, 
+generalMetrics <- nrsaGeneral(sampledTransects = sampTrans, 
                            sideChannels = sideChan,
                            transectSpacing = transSpacing)
 
 print("The general site metrics from this function:")
-unique(generalMets$METRIC)
+unique(generalMetrics$METRIC)
 ```
 
 ### NRSA human influence metrics
@@ -1083,7 +1236,7 @@ There are a number of metrics based on human influence data collected on the **P
 For this function, we simply provide inputs for each type of human influence as a data frame with SITE and VALUE. We can wrap all of this subsetting into the function call, so the inputs are not created a separate datasets. We also need to be sure we only have the following variables in the data frame: SITE, TRANSECT, VALUE
 
 ```{r nrsaHumanInfluence}
-nrsaHumInflMets <- nrsaHumanInfluence(
+nrsaHumInflMetrics <- nrsaHumanInfluence(
   buildings = filter(nrsaChanrip, PARAMETER == 'BUILD') |> 
     select(SITE, TRANSECT, VALUE),
   landfillTrash = filter(nrsaChanrip, PARAMETER == 'TRASH') |> 
@@ -1108,30 +1261,30 @@ nrsaHumInflMets <- nrsaHumanInfluence(
     select(SITE, TRANSECT, VALUE))
 
 print("The human influence metrics from this function:")
-unique(nrsaHumInflMets$METRIC)
+unique(nrsaHumInflMetrics$METRIC)
 ```
 
 ### NRSA large woody debris metrics
 
-The large woody debris metrics are calculated using the function `nrsaLargeWoody()` and based on data collected at each transect both in and out of the water. The data for this example are in the `nrsaChannel` dataset with the SAMPLE_TYPE values of LWDW and LWDB for wadeable and boatable sites, respectively. The inputs are separated into boatable and wadeable for the function. In addition, certain metrics already calculated are used as inputs. The `reachlen` metric from the `nrsaGeneral()` function (`generalMets` dataset) and the `xbkf_w` metric from the `nrsaChannelMorphology()` function (`chanMorphMets` dataset) are both used for the large woody debris metric calculations. For the purposes of this function, the `PARAMETER` should be renamed to `CLASS` for the `bCounts` and `wCounts` inputs.
+The large woody debris metrics are calculated using the function `nrsaLargeWoody()` and based on data collected at each transect both in and out of the water. The data for this example are in the `nrsaChannel` dataset with the SAMPLE_TYPE values of LWDW and LWDB for wadeable and boatable sites, respectively. The inputs are separated into boatable and wadeable for the function. In addition, certain metrics already calculated are used as inputs. The `reachlen` metric from the `nrsaGeneral()` function (`generalMetrics` dataset) and the `xbkf_w` metric from the `nrsaChannelMorphology()` function (`chanMorphMetrics` dataset) are both used for the large woody debris metric calculations. For the purposes of this function, the `PARAMETER` should be renamed to `CLASS` for the `bCounts` and `wCounts` inputs.
 
 ```{r nrsaLargeWoody}
 lwd <- filter(nrsaChannel, SAMPLE_TYPE %in% c('LWDB', 'LWDW')) |>
   mutate(VALUE = as.integer(VALUE))
 
-largeWoodyDebrisMets <- nrsaLargeWoody(
+largeWoodyDebrisMetrics <- nrsaLargeWoody(
   bCounts = filter(lwd, SAMPLE_TYPE=='LWDB') |>
     select(SITE, TRANSECT, CLASS = PARAMETER, VALUE),
   wCounts = filter(lwd, SAMPLE_TYPE=='LWDW') |>
     select(SITE, TRANSECT, CLASS = PARAMETER, VALUE),
-  reachlength = filter(generalMets, METRIC=='reachlen') |>
+  reachlength = filter(generalMetrics, METRIC=='reachlen') |>
     select(SITE, VALUE),
-  meanBankfullWidth = filter(chanMorphMets, METRIC=='xbkf_w') |>
+  meanBankfullWidth = filter(chanMorphMetrics, METRIC=='xbkf_w') |>
     select(SITE, VALUE)
                     )
 
 print("The large woody debris metrics from this function:")
-unique(largeWoodyDebrisMets$METRIC)
+unique(largeWoodyDebrisMetrics$METRIC)
 ```
 
 ### NRSA littoral depth metrics
@@ -1149,10 +1302,10 @@ depths <- nrsaLittoral |>
   merge(units, by = c('SITE', 'TRANSECT')) |>
   select(SITE, VALUE)
 
-littoralDepthMets <- nrsaLittoralDepth(bLittoralDepth = depths)
+littoralDepthMetrics <- nrsaLittoralDepth(bLittoralDepth = depths)
 
 print("The littoral depth metrics from this function:")
-unique(littoralDepthMets$METRIC)
+unique(littoralDepthMetrics$METRIC)
 ```
 
 ### NRSA riparian vegetation metrics
@@ -1224,7 +1377,7 @@ slopeBearingMetrics <- nrsaSlopeBearing(
   wTransectSpacing = wTransectSpacing,
   wProportion = nrsaSlope |>
                     filter(SAMPLE_TYPE %in% c('BANKW','SLOPEW') & PARAMETER=='PROP') |>
-                    select(SITE, TRANSECT, LINE=REP, VALUE) %>%
+                    select(SITE, TRANSECT, LINE=REP, VALUE) |>
                     mutate(VALUE = as.double(VALUE)),
   wSlope = wadeSlope_in,
   gisSinuosity = data.frame(SITE = as.integer(c(13799, 13904)),
@@ -1300,7 +1453,7 @@ The function `nrsaSubstrateEmbed()` calculates substrate embeddedness for wadeab
 ```{r nrsaSubstrateEmbed}
 nrsaSubstrEmbedMetrics <- nrsaSubstrateEmbed(
   percentEmbedded = nrsaChanxsec |>
-  subset(PARAMETER=='EMBED') |>
+  filter(PARAMETER=='EMBED') |>
   mutate(ONBANK = ifelse(TRANSDIR %in% c("LF", "RT"), TRUE, FALSE),
                           VALUE=as.numeric(VALUE)) |> 
     select(SITE, TRANSECT, ONBANK, VALUE)
@@ -1312,47 +1465,88 @@ unique(nrsaSubstrEmbedMetrics$METRIC)
 
 ### NRSA residual pools
 
-We will use the function `nrsaResidualPools()` function to calculate metrics related to residual pools for NRSA. The required data for this function are in the `nrsaThalweg` datasets, as well as some metrics from the metrics file `slopeBearingMetrics` dataset created above.
+We will use the function `nrsaResidualPools()` function to calculate metrics related to residual pools for NRSA. The required data for this function are in the `nrsaThalweg` datasets, as well as some metrics from the metrics file `slopeBearingMetrics` dataset created above. Because the bDepth argument for depth measurements in boatable sites is somewhat complicated, we will create that input separately, but other data inputs can be specified directly in the function. The `siteSlopes` argument comes from the `slopeBearingMetrics` dataset calculated above. The `transectSpacing` argument uses the transect spacing calculated for the `nrsaGeneral()` function example, but the boatable and wadeable transect spacing data frames are combined for a single input into this function. 
 
 ```{r nrsaResidualPools} 
-# START HERE !!!
-residualPoolMetrics <- nrsaResidualPools(
-  bDepth = merge(thalweg |> 
-     filter(PARAMETER %in% c('POLE','SONAR') & TRANSECT %in% LETTERS) |>
-     pivot_wider(id_cols = c(SITE, TRANSECT, STATION), 
+# First create bDepth in two parts
+# The depth measurements and units are separate parameters, so we have to pull 
+# those individually from the nrsaThalweg dataset.
+boatDepths <- nrsaThalweg |> 
+  filter(PARAMETER %in% c('POLE','SONAR') & TRANSECT %in% LETTERS) |>
+  pivot_wider(id_cols = c(SITE, TRANSECT, STATION), 
                  names_from='PARAMETER', 
                  values_from='VALUE') |>
-     mutate(VALUE = as.numeric(ifelse(POLE %in% c('',NA), SONAR, POLE)),
-            STATION=as.numeric(STATION)),
-            bind_rows(thalweg |>
-                        filter(PARAMETER== 'DEPTH_UNITS' & VALUE %nin% c('',NA)) |>
-                        dplyr::rename(DEPTH_UNITS=VALUE) |>
-                        select(SITE, TRANSECT, DEPTH_UNITS))) |>
-                        dplyr::rename(UNITS=DEPTH_UNITS)
-                                      ,by=c('SITE','TRANSECT'), all.x=TRUE
-                                      ) |>
-                                 mutate(STATION = as.integer(STATION)) |>
-                                 select(SITE, TRANSECT, STATION, VALUE, UNITS) 
-                       ,wDepth=thalweg |>
-                               filter(PARAMETER == 'DEPTH') |>
-                               mutate(VALUE = as.numeric(VALUE)
-                                     ,STATION=as.numeric(STATION)
-                                     ) |>
-                                 mutate(STATION = as.integer(STATION)) |>
-                               select(SITE, TRANSECT, STATION, VALUE) 
-                       ,siteSlopes = sb |> 
-                                     filter(METRIC=='xslope') |>
-                                     mutate(VALUE=as.numeric(VALUE)) |>
-                                     select(SITE, VALUE) 
-                       ,transectSpacing = rbind(boatableTransectSpacing |>                               # Copied from transectSpacing arg to nrsaGeneral()
-                                                select(SITE,TRANSECT,VALUE)                               
-                                               ,
-                                               wadeableTransectSpacing |>      
-                                                select(SITE,TRANSECT,VALUE)
-                                               ))
+  mutate(VALUE = as.numeric(ifelse(POLE %in% c('', NA), SONAR, POLE)),
+            STATION = as.integer(STATION)) |>
+  select(SITE, TRANSECT, STATION, VALUE)
+
+boatUnits <- nrsaThalweg |>
+  filter(PARAMETER== 'DEPTH_UNITS' & VALUE %nin% c('',NA)) |>
+  dplyr::rename(UNITS=VALUE) |>
+  select(SITE, TRANSECT, UNITS)
+
+residualPoolMetrics <- nrsaResidualPools(
+  bDepth = merge(boatDepths, boatUnits, by = c('SITE','TRANSECT'), all.x=TRUE), 
+  wDepth = nrsaThalweg |>
+    filter(PARAMETER == 'DEPTH') |>
+    mutate(VALUE = as.numeric(VALUE), 
+           STATION=as.integer(STATION)) |>
+    select(SITE, TRANSECT, STATION, VALUE),
+  siteSlopes = slopeBearingMetrics |> 
+    filter(METRIC=='xslope') |>
+    mutate(VALUE=as.numeric(VALUE)) |>
+    select(SITE, VALUE), 
+  transectSpacing = bind_rows(bTransectSpacing |> # Copied from transectSpacing arg to nrsaGeneral()
+        select(SITE,TRANSECT,VALUE),                               
+    wTransectSpacing |>      
+        select(SITE,TRANSECT,VALUE)))
+
+print("The residual pools metrics from this function:")
+unique(residualPoolMetrics$METRIC)
 ```
 
 
 ### NRSA relative bed stability
 
-Finally, we are ready to calculate relative bed stability, which relies many of the metrics already calculated from other metric functions. 
+Finally, we are ready to calculate bed stability, which relies on metrics already calculated from other metric functions. These include the metrics for channel morphology (xdepth, sddepth, xbkf_h, xbkf_w, xwidth), substrate characterization (lsub_dmm, lsub2dmm), large woody debris (v1w_msq), residual pools (rp100), fish cover (xfc_lwd), and slope and bearing (xslope). We first need to provide the protocol for each site. There are many ways we can determine this from the data, including based on sample types observed in the datasets. Most easily, we can do this based on the thalweg data (`nrsaThalweg`). The valid values for the variable `PROTOCOL` are 'WADEABLE' and 'BOATABLE'. 
+
+```{r nrsaBedStability}
+protocols <- nrsaThalweg |>
+  mutate(PROTOCOL = ifelse(SAMPLE_TYPE=='THALW', 'WADEABLE', 'BOATABLE')) |>
+  select(SITE, PROTOCOL) |>
+  unique()
+
+bedStabilityMetrics <- nrsaBedStability(
+  bXdepth =  filter(chanMorphMetrics, METRIC == 'xdepth' & SITE %in% filter(protocols, PROTOCOL=='BOATABLE')$SITE) |> 
+    select(SITE, VALUE),
+  bSddepth = filter(chanMorphMetrics, METRIC == 'sddepth' & SITE %in% filter(protocols, PROTOCOL=='BOATABLE')$SITE) |> 
+    select(SITE, VALUE),
+  wXdepth =  filter(chanMorphMetrics, METRIC == 'xdepth' & SITE %in% filter(protocols, PROTOCOL=='WADEABLE')$SITE) |> 
+    select(SITE, VALUE),
+  wSddepth = filter(chanMorphMetrics, METRIC == 'sddepth' & SITE %in% filter(protocols, PROTOCOL=='WADEABLE')$SITE) |> 
+    select(SITE, VALUE),
+  lsub_dmm = filter(nrsaSubstrateCharMetrics, METRIC == 'lsub_dmm') |> 
+    select(SITE, VALUE),
+  lsub2dmm = filter(nrsaSubstrateCharMetrics, METRIC == 'lsub2dmm') |> 
+    select(SITE, VALUE),
+  rp100 = filter(residualPoolMetrics, METRIC == 'rp100') |> 
+    select(SITE, VALUE),
+  v1w_msq = filter(largeWoodyDebrisMetrics, METRIC == 'v1w_msq') |> 
+    select(SITE, VALUE),
+  xbkf_h = filter(chanMorphMetrics, METRIC == 'xbkf_h') |> 
+    select(SITE, VALUE),
+  xbkf_w = filter(chanMorphMetrics, METRIC == 'xbkf_w') |> 
+    select(SITE, VALUE),
+  xfc_lwd = filter(fishCovMetrics, METRIC == 'xfc_lwd') |> 
+    select(SITE, VALUE),
+  xslope = filter(slopeBearingMetrics, METRIC == 'xslope') |> 
+    mutate(VALUE = as.numeric(VALUE)) |> 
+    select(SITE, VALUE),
+  xwidth = filter(chanMorphMetrics, METRIC == 'xwidth') |> 
+    select(SITE, VALUE))
+
+print("The bed stability metrics from this function:")
+unique(bedStabilityMetrics$METRIC)
+```
+
+## Calculating Indicators
