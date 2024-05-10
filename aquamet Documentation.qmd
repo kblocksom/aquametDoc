@@ -21,7 +21,7 @@ author:
 
 The purpose of this document is to provide guidance on using the *aquamet* R package. This package is used to calculate physical habitat metrics from raw field-collected data for the National Lakes Assessment (NLA) and the National Rivers and Streams Assessment (NRSA). In each of these National Aquatic Resource Surveys (NARS), hundreds to thousands of individual measurements are made at varying scales, depending on the measurement. These measurements are then combined into hundreds of metrics, a relatively small number of which are eventually used in physical habitat indicators. There are at least 10 functions for NLA and 15 functions for NRSA to calculate physical habitat metrics, and some require previously calculated metrics. Because the process is so complex, this document has been created to walk the user through the use of the functions.
 
-You will notice that code blocks are hidden by folding them up in the document, and clicking on the arrow next to `Code` will reveal the code used to produce output. If you hover in the upper right corner of each code block, you can copy the code to the clipboard and run it in your own session of R.
+You will notice that code blocks are shown throughout the document. Clicking on the arrow next to `Code` above each block will hide it by folding it up. To hide or reveal all of the code blocks, click on the `Code` arrow in the upper right at the very top of the document. If you hover in the upper right corner of each code block, you can copy the code to the clipboard and run it in your own session of R.
 
 ### Installing aquamet
 
@@ -503,7 +503,7 @@ nlaMetrics.wide <- pivot_wider(nlaMetrics, id_cols = 'SITE', names_from='METRIC'
   mutate(across(mets_to_numeric$METRIC, as.numeric))
 ```
 
-## Calculating indicators
+## Calculating NLA physical habitat indicators
 
 Now that all of the metrics have been calculated, we have much of the information needed to calculate the NLA physical habitat indicators and assign condition classes to each site. There are 5 indicators: NLA Drawdown Indicator (`nlaDrawdownIndicator()`), NLA Riparian Vegetation Complexity Indicator (`nlaRipVegCompIndicator()`), NLA Littoral Vegetation Complexity Indicator (`nlaLitVegCompIndicator()`), NLA Littoral-Riparian Vegetation Complexity Indicator (`nlaLitRipVegCompIndicator`), and the NLA Lakeshore Anthropogenic Disturbance Indicator (`nlaRipDistIndicator()`). For each of these indicators, we may require additional information about each site, such as latitude, longitude, lake area, lake elevation, ecoregion, and lake origin. This is because all of the physical habitat indicators except the NLA Lakeshore Anthropogenic Disturbance Indicator compare the observed value for a particular indicator with a modeled site-specific expectation. Typically, the site-related data would be obtained using GIS, but for our purposes, we will create example data in our code to provide all of the additional variables necessary to assign condition. The latitude and longitude represent the approximate center of the lake, and AG_ECO9 is the aggregated level 3 Omernik ecoregion where the center of the lake is located. The lake origin is assigned as either NATURAL or MAN_MADE, the lake area is in square kilometers, and the elevation is the lake surface elevation in meters above sea level.
 
@@ -1549,4 +1549,141 @@ print("The bed stability metrics from this function:")
 unique(bedStabilityMetrics$METRIC)
 ```
 
-## Calculating Indicators
+### Combine all NRSA metrics
+
+Now we can combine all of the metrics into a single data frame, which we can subset for purposes of calculating physical habitat indicators. Doing this in the manner below will convert all values to character because some metric values are character strings and some numeric.
+
+```{r combine-nrsa-metrics}
+# Combine all metrics and select only those needed
+nrsaMetrics <- rbind(bankMorphMetrics, canDensMetrics,
+                         chanCharMetrics, chanHabMetrics,
+                         chanMorphMetrics, fishCovMetrics,
+                         generalMetrics, nrsaHumInflMetrics,
+                         largeWoodyDebrisMetrics, littoralDepthMetrics,
+                         nrsaRiparianVegMetrics, slopeBearingMetrics,
+                         nrsaSubstrateCharMetrics, nrsaSubstrEmbedMetrics,
+                         residualPoolMetrics, bedStabilityMetrics)
+
+```
+
+
+## Calculating NRSA physical habitat indicators
+
+Now that we have all of the NRSA physical habitat metrics calculated, we are ready to calculate indicators. Sometimes, in practice, certain metrics required for physical habitat indicators are missing because of incomplete data collection in the field. These can sometimes be filled in with other metrics that have been determined to be adequate substitutes, but we will not include this in our examples. If the primary metrics required for a particular indicator are missing, that indicator will be assigned Not Assessed. 
+
+There are 4 physical habitat indicators for NRSA: the NRSA Instream Cover Indicator (`nrsaInstrmCoverIndicator()`), the NRSA Relative Bed Stability Indicator (`nrsaRelBedStabilityIndicator()`), the NRSA Riparian Vegetation Indicator (`nrsaRiparianVegIndicator()`), and the NRSA Riparian Disturbance Indicator (`nrsaRipDistIndicator()`). As with the NLA indicators, additional site-related variables are required for calculating each of the NRSA indicators except the NRSA Riparian Disturbance Indicator, and these variables vary by indicator. These variables include aggregated ecoregion (the same AG_ECO9 from NLA), protocol (WADEABLE or BOATABLE, based on field methodology used), latitude and longitude in NAD83 and decimal degrees, elevation in meters, and watershed area in square kilometers. As with the example for NLA indicators, we will create a set of example data for demonstration purposes. Unlike the NLA indicators, there is only one primary metric used for each indicator. 
+
+We will also create a simplified input data frame that can work for all of the indicator functions. We need the following metrics as inputs to these functions: mean wetted width (xwidth), mean slope (xslope), log of relative bed stability (lrbs_g08), riparian human disturbance (w1_hall), mean areal proportion of natural fish cover (xfc_nat), and mean canopy, mid and ground cover (xcmgw).
+
+
+```{r nrsa-create-site-variables}
+nrsaSitedata <- data.frame(SITE=c(10000, 10002, 13799, 13904),
+                       PROTOCOL = c('WADEABLE', 'WADEABLE', 'BOATABLE', 'BOATABLE'),
+                       AG_ECO9=c('SPL', 'TPL', 'SAP', 'CPL'),
+                       LAT_DD=c(39.01491, 38.19893, 34.95092, 32.15905),
+                       LON_DD=c(-98.01046, -95.42768, -87.04203, -87.01008),
+                       ELEV=c(403.88, 308.02, 172.05, 31.07),
+                       AREA=c(20.9043, 26.7714, 4785.6267, 935.0037))
+
+nrsaSitedata
+
+# Filter metrics for those necessary, convert all to numeric, and pivot wider
+nrsaMets_forIndic <- filter(nrsaMetrics, METRIC %in% c('xwidth', 'xslope', 
+                                                       'lrbs_g08', 'w1_hall',
+                                                       'xfc_nat', 'xcmgw')) |>
+  mutate(VALUE = as.numeric(VALUE)) |>
+  pivot_wider(id_cols = SITE, 
+              names_from='METRIC', 
+              values_from='VALUE')
+
+indicIn <- merge(nrsaSitedata, nrsaMets_forIndic, by = 'SITE')
+
+```
+
+### NRSA Instream Cover Indicator
+
+This indicator assesses the areal natural fish cover in the stream and is based on a model which predicts the expected instream cover for a site based on the additional variables provided. The required inputs are ecoregion, protocol, latitude, longitude, mean slope, mean wetted width, elevation, and watershed area. The actual variables used in each model vary by ecoregion and protocol. The mean wetted width (xwidth) and mean slope (xslope) are physical habitat metrics calculated using the `nrsaChannelMorphology()` and `nrsaSlopeBearing()` functions, respectively. These two metrics are also necessary for the riparian vegetation and bed stability indicators. 
+
+```{r instrm-cover}
+
+instrCoverCond <- nrsaInstrmCoverIndicator(
+  x = indicIn,
+  sampID = 'SITE', 
+  ecoreg = 'AG_ECO9',
+  protocol = 'PROTOCOL', 
+  xfc_nat = 'xfc_nat',
+  lat = 'LAT_DD', 
+  lon = 'LON_DD', 
+  slope = 'xslope',
+  xwidth = 'xwidth', 
+  elev = 'ELEV', 
+  area = 'AREA'
+)
+
+print(instrCoverCond)
+```
+
+### NRSA Riparian Vegetation Indicator
+
+This indicator for riparian vegetation condition requires all of the same variables to calculate the indicator and assign condition. As with the NRSA Instream Cover Indicator, different ecoregions require different additional variables to assess condition, and these are detailed in the documentation for the function (use `?nrsaRiparianVegIndicator`).
+
+```{r nrsa-riparian-veg-indic}
+nrsaRipVegCond <- nrsaRiparianVegIndicator(
+  x = indicIn,
+  sampID = 'SITE', 
+  ecoreg = 'AG_ECO9',
+  protocol = 'PROTOCOL',
+  xcmgw = 'xcmgw',
+  lat = 'LAT_DD', 
+  lon = 'LON_DD', 
+  area = 'AREA', 
+  elev = 'ELEV', 
+  slope = 'xslope',
+  xwidth = 'xwidth'
+)
+
+print(nrsaRipVegCond)
+```
+
+### NRSA Riparian Disturbance Indicator
+
+This indicator requires only the w1_hall metric from the `nrsaHumanInfluence()` function. The thresholds to set condition are the same nationwide.
+
+```{r nrsa-rip-dist-indicator}
+nrsaRipDistCond <- nrsaRipDistIndicator(
+  x = indicIn,
+  sampID = 'SITE',
+  w1_hall = 'w1_hall'
+)
+
+print(nrsaRipDistCond)
+
+```
+
+### NRSA Relative Bed Stability Indicator
+
+This final NRSA physical habitat indicator assesses the condition of the stream based on relative bed stability and is dependent on the ecoregion and protocol. Like the riparian vegetation and instream cover indicators, this indicator requires site-related variables and the mean wetted width and mean slope metrics. 
+
+Recall that the relative bed stability metric function used a number of metrics as inputs, so if any critical metrics are missing for the purposes of calculating the lrbs_g08 metric, it will be missing. As mentioned earlier, there are protocols for replacing missing lrbs_g08 values, but since we have that value for all sites in our example,  we will not cover this process here. 
+
+```{r rel-bed-stability-cond}
+nrsaRBSCond <- nrsaRelBedStabilityIndicator(
+  x = indicIn,
+  sampID = 'SITE', 
+  ecoreg = 'AG_ECO9',
+  protocol = 'PROTOCOL',
+  lrbs = 'lrbs_g08',
+  lat = 'LAT_DD', 
+  lon = 'LON_DD', 
+  area = 'AREA', 
+  elev = 'ELEV', 
+  slope = 'xslope',
+  xwidth = 'xwidth'
+)
+
+print(nrsaRBSCond)
+```
+
+# Conclusion
+
+We have now examined in detail the various NLA and NRSA physical habitat datasets that are necessary to calculate physical habitat metrics for these two surveys. We have walked through the calculation of metrics using each of the functions in the `aquamet` package, and we have calculated the habitat indicators for NLA and NRSA, based on the calculated metrics. This document is intended to serve as a guide to get from raw data to final indicators, but it does not cover all possible situations where some data might be missing for specific field measurements. When using a new dataset, if errors or other issues are encountered, examining the input datasets will often reveal the source of problems.  
