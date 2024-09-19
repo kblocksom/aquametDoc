@@ -36,7 +36,7 @@ devtools::install_local("path_to_file", dependencies = 'Imports', type="source")
 Because this package is not located on CRAN, you may need to install the following packages if you do not already have them installed: plyr, dplyr, reshape2, Hmisc, gtools, stringr, foreach, RUnit, and tidyr. This can be done in one statement, using the code below. If you use RStudio, you can also simply use the Install option in the Packages tab to select all of the packages you need to install from CRAN.
 
 ```{r install-oth-pkgs, eval=FALSE}
-install.packages(c('plyr', 'dplyr', 'reshape2', 'Hmisc', 'gtools', 'stringr', 
+install.packages(c('plyr', 'dplyr', 'Hmisc', 'stringr', 
                    'foreach', 'Runit', 'tidyr'))
 ```
 
